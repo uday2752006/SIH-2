@@ -1,0 +1,4126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>INCOIS — Ocean Hazard Dashboard</title>
+
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root {
+      --bg-light: #f4f7fb;
+      --panel-light: #ffffff;
+      --text-light: #1f2937;
+      --muted-light: #6b7280;
+      --accent-light: #006994;
+      --accent-light-hover: #005a7a;
+      --bg-dark: #0b1220;
+      --panel-dark: #131c2f;
+      --text-dark: #e6eef8;
+      --muted-dark: #94a3b8;
+      --accent-dark: #00aaff;
+      --accent-dark-hover: #0088cc;
+      --primary-blue: #006994;
+      --secondary-blue: #0088cc;
+      --dark-blue: #004d66;
+      --light-blue: #e6f7ff;
+      --transition: all 0.35s cubic-bezier(0.25, 0.8, 0.25, 1);
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg-light);
+      color: var(--text-light);
+      transition: var(--transition);
+    }
+   
+    body.dark {
+      background: var(--bg-dark);
+      color: var(--text-dark);
+    }
+
+    /* Smooth transitions for all elements */
+    * {
+      transition: background-color 0.35s ease, color 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease, transform 0.35s ease, opacity 0.35s ease;
+    }
+
+    .app-shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 0;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+   
+    .app-shell.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+   
+    @media (max-width: 992px) {
+      .app-shell {
+        grid-template-columns: 1fr;
+      }
+      .sidebar {
+        display: none;
+      }
+    }
+
+    .sidebar {
+      background: linear-gradient(180deg, var(--accent-light), #083a4d);
+      color: #fff;
+      padding: 1.25rem;
+      min-height: 100vh;
+      box-shadow: 0 6px 18px rgba(2, 6, 23, 0.08);
+      transition: var(--transition);
+    }
+   
+    body.dark .sidebar {
+      background: linear-gradient(180deg, var(--accent-dark), #052233);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+    }
+
+    .brand {
+      display: flex;
+      gap: .75rem;
+      align-items: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+   
+    .brand .logo {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: #fff;
+      color: var(--accent-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 1.2rem;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
+   
+    body.dark .brand .logo {
+      color: var(--accent-dark);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    }
+
+    .sidebar .nav-link {
+      color: rgba(255, 255, 255, 0.95);
+      border-radius: 8px;
+      padding: .75rem;
+      display: flex;
+      gap: .75rem;
+      align-items: center;
+      text-decoration: none;
+      margin-bottom: 0.5rem;
+      transition: var(--transition);
+    }
+   
+    .sidebar .nav-link:hover {
+      background: rgba(255, 255, 255, 0.1);
+      transform: translateX(5px);
+    }
+   
+    .sidebar .nav-link.active {
+      background: rgba(255, 255, 255, 0.15);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+      background: var(--panel-light);
+      border-radius: 12px;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      transition: var(--transition);
+    }
+   
+    body.dark .topbar {
+      border-bottom-color: rgba(255, 255, 255, 0.04);
+      background: var(--panel-dark);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .topbar .controls {
+      display: flex;
+      gap: .75rem;
+      align-items: center;
+    }
+
+    .main {
+      padding: 1.5rem;
+    }
+
+    .panel {
+      background: var(--panel-light);
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 6px 18px rgba(2, 6, 23, 0.06);
+      transition: var(--transition);
+      border: 1px solid rgba(0, 0, 0, 0.03);
+    }
+   
+    body.dark .panel {
+      background: var(--panel-dark);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+      border-color: rgba(255, 255, 255, 0.03);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+   
+    .stat-card {
+      display: flex;
+      flex-direction: column;
+      padding: 1.25rem;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--accent-light), var(--secondary-blue));
+      color: white;
+      box-shadow: 0 6px 12px rgba(0, 105, 148, 0.2);
+      transition: var(--transition);
+    }
+   
+    body.dark .stat-card {
+      background: linear-gradient(135deg, var(--accent-dark), #0088cc);
+      box-shadow: 0 6px 12px rgba(0, 136, 204, 0.3);
+    }
+   
+    .stat-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 20px rgba(0, 105, 148, 0.3);
+    }
+   
+    body.dark .stat-card:hover {
+      box-shadow: 0 10px 20px rgba(0, 136, 204, 0.4);
+    }
+   
+    .stat-card .value {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin: 0.5rem 0;
+    }
+   
+    .stat-card .label {
+      opacity: 0.9;
+      font-size: 0.9rem;
+    }
+
+    .map-card {
+      height: 520px;
+      padding: 0;
+      overflow: hidden;
+      border-radius: 12px;
+      position: relative;
+    }
+   
+    #map, #mapOfficer, #mapAnalyst {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border-radius: 12px;
+    }
+
+    /* Map controls - fixed positioning */
+    .map-controls {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+      padding: 0.75rem 1rem;
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      background: var(--panel-light);
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+      transition: var(--transition);
+    }
+   
+    body.dark .map-controls {
+      background: var(--panel-dark);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    }
+   
+    .map-controls label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      margin: 0;
+      transition: var(--transition);
+      color: var(--text-light);
+    }
+   
+    body.dark .map-controls label {
+      color: var(--text-dark);
+    }
+   
+    .map-controls input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    /* Auth page */
+    #auth-page {
+      background: linear-gradient(135deg, var(--primary-blue), var(--dark-blue));
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      padding: 10px;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      overflow-y: auto;
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+   
+    #auth-page.hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-20px);
+    }
+
+    .auth-container {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+      width: 100%;
+      max-width: 420px;
+      overflow: hidden;
+      transform: scale(0.95);
+      transition: var(--transition);
+    }
+   
+    #auth-page:not(.hidden) .auth-container {
+      transform: scale(1);
+    }
+   
+    body.dark .auth-container {
+      background: var(--panel-dark);
+    }
+
+    .auth-header {
+      background: var(--primary-blue);
+      color: white;
+      padding: 2.5rem 2rem;
+      text-align: center;
+    }
+   
+    .auth-header h1 {
+      font-size: 2rem;
+      margin-bottom: .5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+    }
+   
+    .auth-tabs {
+      display: flex;
+      border-bottom: 1px solid #dee2e6;
+    }
+   
+    .auth-tab {
+      flex: 1;
+      padding: 1.25rem;
+      text-align: center;
+      background: #f8f9fa;
+      border: none;
+      cursor: pointer;
+      font-weight: 500;
+      transition: var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+   
+    body.dark .auth-tab {
+      background: #1a243a;
+      color: var(--text-dark);
+    }
+   
+    .auth-tab.active {
+      background: var(--primary-blue);
+      color: white;
+    }
+   
+    .auth-tab::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      width: 0;
+      height: 3px;
+      background: var(--primary-blue);
+      transition: var(--transition);
+      transform: translateX(-50);
+    }
+   
+    .auth-tab.active::after {
+      width: 80%;
+    }
+   
+    .auth-tab:not(.active):hover::after {
+      width: 40%;
+      background: var(--muted-light);
+    }
+
+    .auth-form {
+      padding: 2rem;
+      display: none;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: var(--transition);
+    }
+   
+    .auth-form.active {
+      display: block;
+      opacity: 1;
+      transform: translateY(0);
+    }
+   
+    .form-group {
+      position: relative;
+    }
+   
+    .form-group label {
+      display: block;
+      margin-bottom: .5rem;
+      font-weight: 500;
+      color: var(--text-light);
+      transition: var(--transition);
+    }
+   
+    body.dark .form-group label {
+      color: var(--text-dark);
+    }
+   
+    .form-control {
+      width: 100%;
+      padding: .85rem;
+      border: 1px solid #ced4da;
+      border-radius: 8px;
+      transition: var(--transition);
+      font-size: 1rem;
+    }
+   
+    .form-control:focus {
+      border-color: var(--primary-blue);
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(0, 105, 148, .15);
+      transform: translateY(-2px);
+    }
+   
+    body.dark .form-control {
+      background: rgba(0, 0, 0, 0.1);
+      border-color: rgba(255, 255, 255, 0.1);
+      color: var(--text-dark);
+    }
+   
+    body.dark .form-control:focus {
+      border-color: var(--accept-dark);
+      box-shadow: 0 0 0 3px rgba(0, 170, 255, 0.15);
+    }
+   
+    .btn {
+      padding: .85rem 1.5rem;
+      border: none;
+      border-radius: 8px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: var(--transition);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+   
+    .btn-primary {
+      background: var(--primary-blue);
+      color: white;
+      width: 100%;
+    }
+   
+    .btn-primary:hover {
+      background: var(--dark-blue);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 12px rgba(0, 105, 148, 0.2);
+    }
+   
+    .user-type-buttons {
+      display: flex;
+      gap: .75rem;
+      margin-bottom: 1rem;
+    }
+   
+    .user-type-btn {
+      flex: 1;
+      padding: 1rem;
+      border: 2px solid #dee2e6;
+      background: white;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: center;
+      transition: var(--transition);
+    }
+   
+    body.dark .user-type-btn {
+      background: rgba(0, 0, 0, 0.1);
+      border-color: rgba(255, 255, 255, 0.1);
+      color: var(--text-dark);
+    }
+   
+    .user-type-btn.active {
+      border-color: var(--primary-blue);
+      background: var(--light-blue);
+      box-shadow: 0 4px 10px rgba(0, 105, 148, 0.1);
+      transform: translateY(-2px);
+    }
+   
+    body.dark .user-type-btn.active {
+      border-color: var(--accept-dark);
+      background: rgba(0, 170, 255, 0.1);
+      box-shadow: 0 4px 10px rgba(0, 170, 255, 0.1);
+    }
+   
+    .user-type-btn i {
+      display: block;
+      font-size: 1.5rem;
+      margin-bottom: .5rem;
+      color: var(--primary-blue);
+      transition: var(--transition);
+    }
+   
+    body.dark .user-type-btn i {
+      color: var(--accent-dark);
+    }
+   
+    .user-type-btn.active i {
+      transform: scale(1.1);
+    }
+   
+    .password-toggle {
+      position: relative;
+    }
+   
+    .password-toggle .toggle-icon {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      cursor: pointer;
+      color: #6c757d;
+      transition: var(--transition);
+    }
+   
+    .password-toggle .toggle-icon:hover {
+      color: var(--primary-blue);
+    }
+   
+    body.dark .password-toggle .toggle-icon {
+      color: var(--muted-dark);
+    }
+   
+    body.dark .password-toggle .toggle-icon:hover {
+      color: var(--accent-dark);
+    }
+   
+    .demo-accounts {
+      margin-top: 1.5rem;
+      padding: 1.25rem;
+      background: #f8f9fa;
+      border-radius: 8px;
+      font-size: .9rem;
+      transition: var(--transition);
+    }
+   
+    body.dark .demo-accounts {
+      background: rgba(0, 0, 0, 0.1);
+    }
+   
+    .demo-accounts h4 {
+      margin-bottom: .75rem;
+      font-size: 1rem;
+      color: var(--text-light);
+    }
+   
+    body.dark .demo-accounts h4 {
+      color: var(--text-dark);
+    }
+   
+    .demo-account {
+      padding: .75rem;
+      border-bottom: 1px solid #dee2e6;
+      cursor: pointer;
+      transition: var(--transition);
+      border-radius: 6px;
+    }
+   
+    body.dark .demo-account {
+      border-bottom-color: rgba(255, 255, 255, 0.1);
+    }
+   
+    .demo-account:last-child {
+      border-bottom: none;
+    }
+   
+    .demo-account:hover {
+      background: #e9ecef;
+      transform: translateX(5px);
+    }
+   
+    body.dark .demo-account:hover {
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    /* Dark mode toggle button */
+    .dark-mode-toggle {
+      position: relative;
+      width: 60px;
+      height: 30px;
+      border-radius: 15px;
+      background: #e0e0e0;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      padding: 0 3px;
+      transition: var(--transition);
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+   
+    body.dark .dark-mode-toggle {
+      background: #2d3748;
+    }
+   
+    .dark-mode-toggle::before {
+      content: '';
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: white;
+      transition: var(--transition);
+      left: 3px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+   
+    body.dark .dark-mode-toggle::before {
+      transform: translateX(30px);
+      background: #fef08a;
+    }
+   
+    .dark-mode-toggle i {
+      font-size: 14px;
+      position: relative;
+      z-index: 1;
+      transition: var(--transition);
+    }
+   
+    .dark-mode-toggle .fa-sun {
+      color: #f59e0b;
+      opacity: 0;
+      margin-left: auto;
+    }
+   
+    .dark-mode-toggle .fa-moon {
+      color: #4b5563;
+    }
+   
+    body.dark .dark-mode-toggle .fa-sun {
+      opacity: 1;
+    }
+   
+    body.dark .dark-mode-toggle .fa-moon {
+      opacity: 0;
+    }
+
+    .wind-marker {
+      width: 44px;
+      height: 44px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      background: rgba(255, 255, 255, 0.95);
+      box-shadow: 0 2px 8px rgba(2, 6, 23, .12);
+      transition: var(--transition);
+    }
+   
+    body.dark .wind-marker {
+      background: rgba(10, 14, 20, .9);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, .6);
+    }
+
+    .muted {
+      color: var(--muted-light);
+    }
+   
+    body.dark .muted {
+      color: var(--muted-dark);
+    }
+   
+    footer {
+      margin-top: 1.5rem;
+      text-align: center;
+      color: var(--muted-light);
+      padding: 1rem;
+    }
+   
+    body.dark footer {
+      color: var(--muted-dark);
+    }
+   
+    /* Form improvements */
+    #hazardForm select,
+    #hazardForm input {
+      transition: var(--transition);
+    }
+   
+    #hazardForm select:focus,
+    #hazardForm input:focus {
+      transform: translateY(-2px);
+    }
+   
+    /* Animation for login success */
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+   
+    .animate-in {
+      animation: fadeInUp 0.5s ease forwards;
+    }
+   
+    /* Notification toast */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      padding: 1rem 1.5rem;
+      background: var(--panel-light);
+      color: var(--text-light);
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      z-index: 10000;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: var(--transition);
+    }
+   
+    body.dark .toast {
+      background: var(--panel-dark);
+      color: var(--text-dark);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+   
+    .toast.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+   
+    .toast.success {
+      border-left: 4px solid #10b981;
+    }
+   
+    .toast.error {
+      border-left: 4px solid #ef4444;
+    }
+   
+    /* Social feed posts */
+    .social-post {
+      padding: 1rem;
+      margin-bottom: 1rem;
+      border-radius: 8px;
+      background: var(--panel-light);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      transition: var(--transition);
+    }
+   
+    body.dark .social-post {
+      background: var(--panel-dark);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+   
+    .social-post:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+   
+    body.dark .social-post:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+   
+    .social-post-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+      position: relative;
+    }
+   
+    .social-post-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--accent-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+    }
+   
+    body.dark .social-post-avatar {
+      background: var(--accept-dark);
+    }
+   
+    .social-post-content {
+      color: var(--text-light);
+    }
+   
+    body.dark .social-post-content {
+      color: var(--text-dark);
+    }
+   
+    .social-post-meta {
+      font-size: 0.85rem;
+      color: var(--muted-light);
+      display: flex;
+      gap: 1rem;
+      margin-top: 0.5rem;
+    }
+   
+    body.dark .social-post-meta {
+      color: var(--muted-dark);
+    }
+   
+    /* Alert indicators */
+    .alert-indicator {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+   
+    .alert-high {
+      background-color: #ef4444;
+    }
+   
+    .alert-medium {
+      background-color: #f59e0b;
+    }
+   
+    .alert-low {
+      background-color: #10b981;
+    }
+   
+    /* Government officer specific styles */
+    .officer-tools {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.5rem;
+      margin-top: 1.5rem;
+    }
+   
+    .chart-container {
+      position: relative;
+      height: 300px;
+      width: 100%;
+    }
+   
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+   
+    .data-table th, .data-table td {
+      padding: 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    }
+   
+    body.dark .data-table th,
+    body.dark .data-table td {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+   
+    .data-table th {
+      font-weight: 600;
+      background-color: rgba(0, 0, 0, 0.03);
+    }
+   
+    body.dark .data-table th {
+      background-color: rgba(255, 255, 255, 0.05);
+    }
+   
+    /* User dashboard specific styles */
+    .alert-panel {
+      margin-bottom: 1.5rem;
+    }
+   
+    .alert-item {
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 0.75rem;
+      background: var(--panel-light);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      transition: var(--transition);
+      border-left: 4px solid #6b7280;
+    }
+   
+    body.dark .alert-item {
+      background: var(--panel-dark);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+   
+    .alert-item.high {
+      border-left-color: #ef4444;
+    }
+   
+    .alert-item.medium {
+      border-left-color: #f59e0b;
+    }
+   
+    .alert-item.low {
+      border-left-color: #10b981;
+    }
+   
+    /* Role-specific sections */
+    .user-only, .officer-only, .analyst-only {
+      display: none;
+    }
+   
+    /* Tabs for officer dashboard */
+    .nav-tabs .nav-link {
+      border: none;
+      border-bottom: 2px solid transparent;
+      padding: 0.75rem 1.25rem;
+      color: var(--text-light);
+      transition: var(--transition);
+    }
+   
+    body.dark .nav-tabs .nav-link {
+      color: var(--text-dark);
+    }
+   
+    .nav-tabs .nav-link.active {
+      border-bottom-color: var(--accent-light);
+      color: var(--accept-light);
+    }
+   
+    body.dark .nav-tabs .nav-link.active {
+      border-bottom-color: var(--accent-dark);
+      color: var(--accent-dark);
+    }
+   
+    /* Trending news section */
+    .trending-news {
+      margin-top: 1.5rem;
+    }
+   
+    .trending-item {
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 0.75rem;
+      background: var(--panel-light);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      transition: var(--transition);
+    }
+   
+    body.dark .trending-item {
+      background: var(--panel-dark);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+   
+    .trending-item:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+   
+    body.dark .trending-item:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+   
+    .trending-source {
+      font-size: 0.85rem;
+      color: var(--muted-light);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+   
+    body.dark .trending-source {
+      color: var(--muted-dark);
+    }
+   
+    .trending-source i {
+      color: var(--accent-light);
+    }
+   
+    body.dark .trending-source i {
+      color: var(--accent-dark);
+    }
+   
+    /* Report hazard form */
+    .report-form {
+      margin-top: 1.5rem;
+    }
+   
+    /* User tabs */
+    .user-tabs {
+      margin-bottom: 1.5rem;
+    }
+   
+    /* Alert block for government officials */
+    .alert-block {
+      background: linear-gradient(135deg, #ff6b6b, #ff5252);
+      color: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 6px 12px rgba(239, 68, 68, 0.2);
+    }
+   
+    body.dark .alert-block {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      box-shadow: 0 6px 12px rgba(239, 68, 68, 0.3);
+    }
+   
+    .alert-block h5 {
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+   
+    .language-checkboxes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+   
+    .language-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+   
+    .language-checkbox input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+    }
+   
+    /* Enhanced officer dashboard styles */
+    .officer-dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+   
+    .dashboard-card {
+      background: var(--panel-light);
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      transition: var(--transition);
+    }
+   
+    body.dark .dashboard-card {
+      background: var(--panel-dark);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+   
+    .dashboard-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    }
+   
+    body.dark .dashboard-card:hover {
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+    }
+   
+    .dashboard-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+   
+    .dashboard-card-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-light);
+      margin: 0;
+    }
+   
+    body.dark .dashboard-card-title {
+      color: var(--text-dark);
+    }
+   
+    .dashboard-card-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: var(--accent-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+    }
+   
+    body.dark .dashboard-card-icon {
+      background: var(--accent-dark);
+    }
+   
+    .dashboard-card-value {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin: 0.5rem 0;
+      color: var(--accent-light);
+    }
+   
+    body.dark .dashboard-card-value {
+      color: var(--accent-dark);
+    }
+   
+    .dashboard-card-change {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+    }
+   
+    .change-positive {
+      color: #10b981;
+    }
+   
+    .change-negative {
+      color: #ef4444;
+    }
+   
+    .incident-status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+   
+    .status-item {
+      text-align: center;
+      padding: 1rem;
+      border-radius: 8px;
+      background: var(--panel-light);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+   
+    body.dark .status-item {
+      background: var(--panel-dark);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+   
+    .status-item-count {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+    }
+   
+    .status-item-label {
+      font-size: 0.85rem;
+      color: var(--muted-light);
+    }
+   
+    body.dark .status-item-label {
+      color: var(--muted-dark);
+    }
+   
+    .status-pending {
+      border-left: 4px solid #f59e0b;
+    }
+   
+    .status-in-progress {
+      border-left: 4px solid #3b82f6;
+    }
+   
+    .status-resolved {
+      border-left: 4px solid #10b981;
+    }
+   
+    .status-critical {
+      border-left: 4px solid #ef4444;
+    }
+   
+    .quick-actions {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+   
+    .quick-action-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      border-radius: 8px;
+      background: var(--panel-light);
+      border: 1px solid rgba(0, 0, 0, 0.05);
+      cursor: pointer;
+      transition: var(--transition);
+    }
+   
+    body.dark .quick-action-btn {
+      background: var(--panel-dark);
+      border-color: rgba(255, 255, 255, 0.05);
+    }
+   
+    .quick-action-btn:hover {
+      background: var(--accent-light);
+      color: white;
+      transform: translateY(-3px);
+    }
+   
+    body.dark .quick-action-btn:hover {
+      background: var(--accent-dark);
+    }
+   
+    .quick-action-icon {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+   
+    .quick-action-label {
+      font-size: 0.85rem;
+      text-align: center;
+    }
+   
+    .incident-timeline {
+      margin-top: 1.5rem;
+    }
+   
+    .timeline-item {
+      position: relative;
+      padding-left: 2rem;
+      margin-bottom: 1.5rem;
+    }
+   
+    .timeline-item:last-child {
+      margin-bottom: 0;
+    }
+   
+    .timeline-item::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--accent-light);
+    }
+   
+    body.dark .timeline-item::before {
+      background: var(--accent-dark);
+    }
+   
+    .timeline-item::after {
+      content: '';
+      position: absolute;
+      left: 5px;
+      top: 12px;
+      bottom: -1.5rem;
+      width: 2px;
+      background: var(--accent-light);
+      opacity: 0.3;
+    }
+   
+    body.dark .timeline-item::after {
+      background: var(--accent-dark);
+    }
+   
+    .timeline-item:last-child::after {
+      display: none;
+    }
+   
+    .timeline-date {
+      font-size: 0.85rem;
+      color: var(--muted-light);
+      margin-bottom: 0.25rem;
+    }
+   
+    body.dark .timeline-date {
+      color: var(--muted-dark);
+    }
+   
+    .timeline-content {
+      font-size: 0.95rem;
+    }
+
+    /* Analyst specific styles */
+    .analyst-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .analytics-card {
+      background: var(--panel-light);
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      transition: var(--transition);
+      height: 100%;
+    }
+   
+    body.dark .analytics-card {
+      background: var(--panel-dark);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .analytics-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    }
+   
+    body.dark .analytics-card:hover {
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+    }
+
+    .analytics-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    .analytics-card-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-light);
+      margin: 0;
+    }
+   
+    body.dark .analytics-card-title {
+      color: var(--text-dark);
+    }
+
+    .analytics-card-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: #8b5cf6;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+    }
+
+    .analytics-card-value {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin: 0.5rem 0;
+      color: #8b5cf6;
+    }
+
+    .analytics-card-change {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+    }
+
+    .user-report-card {
+      background: var(--panel-light);
+      border-radius: 12px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      transition: var(--transition);
+    }
+   
+    body.dark .user-report-card {
+      background: var(--panel-dark);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .user-report-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+   
+    body.dark .user-report-card:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .user-report-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+
+    .user-report-title {
+      font-weight: 600;
+      color: var(--text-light);
+    }
+   
+    body.dark .user-report-title {
+      color: var(--text-dark);
+    }
+
+    .user-report-meta {
+      font-size: 0.85rem;
+      color: var(--muted-light);
+    }
+   
+    body.dark .user-report-meta {
+      color: var(--muted-dark);
+    }
+
+    .user-report-content {
+      color: var(--text-light);
+      margin-bottom: 0.5rem;
+    }
+   
+    .user-report-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .user-report-status {
+      font-size: 0.85rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      background: #e5e7eb;
+    }
+   
+    body.dark .user-report-status {
+      background: #374151;
+    }
+
+    .status-new {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+   
+    body.dark .status-new {
+      background: #1e3a8a;
+      color: #dbeafe;
+    }
+
+    .status-in-progress {
+      background: #fef3c7;
+      color: #92400e;
+    }
+   
+    body.dark .status-in-progress {
+      background: #78350f;
+      color: #fef3c7;
+    }
+
+    .status-resolved {
+      background: #d1fae5;
+      color: #065f46;
+    }
+   
+    body.dark .status-resolved {
+      background: #064e3b;
+      color: #d1fae5;
+    }
+
+    .user-report-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .filter-controls {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .filter-control {
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      background: var(--panel-light);
+      border: 1px solid rgba(0, 0, 0, 0.05);
+      cursor: pointer;
+      transition: var(--transition);
+    }
+   
+    body.dark .filter-control {
+      background: var(--panel-dark);
+      border-color: rgba(255, 255, 255, 0.05);
+    }
+
+    .filter-control.active {
+      background: var(--accent-light);
+      color: white;
+    }
+   
+    body.dark .filter-control.active {
+      background: var(--accent-dark);
+    }
+    /* Add this to your CSS section */
+.guest-access-btn {
+  background-color: #f8f9fa;
+  border: 2px solid #dee2e6;
+  width: 100%;
+  text-align: center;
+  margin-top: 10px;
+}
+
+.guest-access-btn:hover {
+  background-color: #e9ecef;
+  border-color: #006994;
+  transform: translateY(-2px);
+}
+
+body.dark .guest-access-btn {
+  background-color: rgba(0, 0, 0, 0.1);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-dark);
+}
+
+body.dark .guest-access-btn:hover {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-color: var(--accent-dark);
+}
+  </style>
+</head>
+<body>
+
+<!-- ===== AUTH PAGE ===== -->
+<div id="auth-page" aria-hidden="false">
+  <div class="auth-container">
+    <div class="auth-header">
+      <h1><i class="fas fa-water"></i>Jal-Sanket</h1>
+      <p>Ocean Hazard Reporting Platform</p>
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" data-tab="login">Login</button>
+      <button class="auth-tab" data-tab="register">Register</button>
+    </div>
+    <form class="auth-form active" id="loginForm">
+      <div class="card-body">
+        <div class="form-group">
+          <label for="loginEmail">Email</label>
+          <input type="email" id="loginEmail" class="form-control" placeholder="Enter your email" required>
+        </div>
+        <div class="form-group password-toggle">
+          <label for="loginPassword">Password</label>
+          <input type="password" id="loginPassword" class="form-control" placeholder="Enter your password" required>
+          <span class="toggle-icon" id="toggleLoginPassword"><i class="fas fa-eye"></i></span>
+        </div>
+        <!-- In the login form section, after the user type buttons -->
+<div class="user-type-buttons">
+  <div class="user-type-btn active" data-type="user"><i class="fas fa-user"></i><span>General User</span></div>
+  <div class="user-type-btn" data-type="officer"><i class="fas fa-id-card"></i><span>Government Officer</span></div>
+  <div class="user-type-btn" data-type="analyst"><i class="fas fa-chart-line"></i><span>Analyst</span></div>
+</div>
+<!-- Add this new button for guest access -->
+<div class="user-type-btn guest-access-btn" data-type="guest" style="margin-top: 10px;">
+  <i class="fas fa-sign-in-alt"></i><span>Continue Without Login</span>
+</div>
+<input type="hidden" id="loginUserType" value="user">
+        <button type="submit" class="btn btn-primary"><i class="fas fa-sign-in-alt"></i> Login</button>
+        <div class="demo-accounts">
+          <h4>Demo Accounts:</h4>
+          <div class="demo-account" data-email="user@incois.com" data-password="user123" data-type="user">
+            <strong>General User</strong>: user@incois.com / user123
+          </div>
+          <div class="demo-account" data-email="officer@incois.com" data-password="officer123" data-type="officer">
+            <strong>Government Officer</strong>: officer@incois.com / officer123
+          </div>
+          <div class="demo-account" data-email="analyst@incois.com" data-password="analyst123" data-type="analyst">
+            <strong>Analyst</strong>: analyst@incois.com / analyst123
+          </div>
+        </div>
+      </div>
+    </form>
+    <form class="auth-form" id="registerForm">
+      <div class="card-body">
+        <div class="form-group">
+          <label for="registerName">Full Name</label>
+          <input type="text" id="registerName" class="form-control" placeholder="Enter your full name" required>
+        </div>
+        <div class="form-group">
+          <label for="registerEmail">Email</label>
+          <input type="email" id="registerEmail" class="form-control" placeholder="Enter your email" required>
+        </div>
+        <div class="form-group password-toggle">
+          <label for="registerPassword">Password</label>
+          <input type="password" id="registerPassword" class="form-control" placeholder="Create a password" required>
+          <span class="toggle-icon" id="toggleRegisterPassword"><i class="fas fa-eye"></i></span>
+        </div>
+ 
+        <div class="form-group">
+          <label>User Type</label>
+          <div class="user-type-buttons">
+            <div class="user-type-btn active" data-type="user"><i class="fas fa-user"></i><span>General User</span></div>
+            <div class="user-type-btn" data-type="officer"><i class="fas fa-id-card"></i><span>Government Officer</span></div>
+            <div class="user-type-btn" data-type="analyst"><i class="fas fa-chart-line"></i><span>Analyst</span></div>
+          </div>
+          <input type="hidden" id="registerUserType" value="user">
+        </div>
+       
+        <!-- Government ID field (only visible for officers) -->
+        <div class="form-group" id="governmentIdField" style="display: none;">
+          <label for="governmentId">Government ID</label>
+          <input type="text" id="governmentId" class="form-control" placeholder="Enter your government ID">
+        </div>
+
+        <!-- Analyst ID field (only visible for analysts) -->
+        <div class="form-group" id="analystIdField" style="display: none;">
+          <label for="analystId">Analyst ID</label>
+          <input type="text" id="analystId" class="form-control" placeholder="Enter your analyst ID">
+        </div>
+       
+        <button type="submit" class="btn btn-primary"><i class="fas fa-user-plus"></i> Register</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===== APPLICATION SHELL ===== -->
+<div class="app-shell" id="appShell">
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="brand">
+      <div class="logo">IN</div>
+      <span>Jal-Sanket</span>
+    </div>
+    <a href="#" class="nav-link active" data-section="dashboard"><i class="fas fa-home"></i> Dashboard</a>
+    <a href="#mapSection" class="nav-link" data-section="map"><i class="fas fa-map"></i> Map</a>
+    <a href="#reportSection" class="nav-link officer-only" data-section="reports"><i class="fas fa-clipboard-list"></i> Reports</a>
+    <a href="#socialSection" class="nav-link user-only" data-section="social"><i class="fas fa-users"></i> Social Feed</a>
+    <a href="#analyticsSection" class="nav-link analyst-only" data-section="analytics"><i class="fas fa-chart-bar"></i> Analytics</a>
+    <a href="#" class="nav-link" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</a>
+  </nav>
+
+  <!-- MAIN CONTENT -->
+  <div class="main">
+    <div class="topbar">
+      <h4 id="dashboardTitle">Welcome to INCOIS Ocean Hazard Dashboard</h4>
+      <div class="controls">
+        <button class="dark-mode-toggle" id="darkModeToggle">
+          <i class="fas fa-moon"></i>
+          <i class="fas fa-sun"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- User Dashboard Content -->
+    <div class="user-only" id="userDashboard">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <span class="label">Active Hazards</span>
+          <span class="value">3</span>
+          <i class="fas fa-exclamation-triangle"></i>
+        </div>
+        <div class="stat-card">
+          <span class="label">Community Reports</span>
+          <span class="value">42</span>
+          <i class="fas fa-users"></i>
+        </div>
+        <div class="stat-card">
+          <span class="label">Your Reports</span>
+          <span class="value">5</span>
+          <i class="fas fa-flag"></i>
+        </div>
+        <div class="stat-card">
+          <span class="label">Resolved</span>
+          <span class="value">38</span>
+          <i class="fas fa-check-circle"></i>
+        </div>
+      </div>
+
+      <!-- Alert Panel -->
+      <div class="panel alert-panel">
+        <h5><i class="fas fa-bell"></i> Current Hazard Alerts</h5>
+        <div class="alert-item high">
+          <span class="alert-indicator alert-high"></span>
+          <strong>High Wave Warning</strong> - Coastal areas of Tamil Nadu. Waves expected to reach 3.5 meters.
+        </div>
+        <div class="alert-item medium">
+          <span class="alert-indicator alert-medium"></span>
+          <strong>Cyclone Watch</strong> - Low pressure forming in Bay of Bengal. Monitor updates.
+        </div>
+        <div class="alert-item low">
+          <span class="alert-indicator alert-low"></span>
+          <strong>Rip Current Advisory</strong> - Several beaches in Kerala experiencing strong currents.
+        </div>
+      </div>
+
+      <!-- User Tabs -->
+      <ul class="nav nav-tabs user-tabs" id="userTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="report-tab" data-bs-toggle="tab" data-bs-target="#report" type="button" role="tab">Report Hazard</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="stats-tab" data-bs-toggle="tab" data-bs-target="#stats" type="button" role="tab">Disaster Statistics</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="incidents-tab" data-bs-toggle="tab" data-bs-target="#incidents" type="button" role="tab">Incident Reports</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="analysis-tab" data-bs-toggle="tab" data-bs-target="#analysis" type="button" role="tab">Trend Analysis</button>
+        </li>
+      </ul>
+     
+      <div class="tab-content mt-3" id="userTabContent">
+        <!-- Report Hazard Tab -->
+        <div class="tab-pane fade show active" id="report" role="tabpanel">
+          <div class="panel report-form">
+            <h5><i class="fas fa-exclamation-circle"></i>Report a Hazard</h5>
+            <p class="muted">Help keep the community safe by reporting ocean hazards you observe.</p>
+            <form id="hazardReportForm">
+              <div class="row">
+                <div class="col-md-6">
+                  <div class="form-group">
+                    <label for="hazardType">Hazard Type</label>
+                    <select class="form-control" id="hazardType" required>
+                      <option value="">Select Hazard Type</option>
+                      <option>High Waves</option>
+                      <option>Strong Currents</option>
+                      <option>Oil Spill</option>
+                      <option>Marine Debris</option>
+                      <option>Flooding</option>
+                      <option>Other</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-group">
+                    <label for="hazardSeverity">Severity Level</label>
+                    <select class="form-control" id="hazardSeverity" required>
+                      <option value="">Select Severity</option>
+                      <option>Low</option>
+                      <option>Medium</option>
+                      <option>High</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="hazardLocation">Location</label>
+                <input type="text" class="form-control" id="hazardLocation" placeholder="Enter location or coordinates" required>
+              </div>
+              <div class="form-group">
+                <label for="hazardDescription">Description</label>
+                <textarea class="form-control" id="hazardDescription" rows="3" placeholder="Provide details about the hazard" required></textarea>
+              </div>
+              <div class="form-group">
+                <label for="hazardImage">Upload Image (Optional)</label>
+                <input type="file" class="form-control" id="hazardImage" accept="image/*">
+              </div>
+              <button class="btn btn-primary" type="submit"><i class="fas fa-paper-plane"></i> Submit Report</button>
+            </form>
+          </div>
+        </div>
+       
+        <!-- Statistics Tab -->
+        <div class="tab-pane fade" id="stats" role="tabpanel">
+          <div class="panel">
+            <h5>Disaster Statistics</h5>
+            <div class="row mb-4">
+              <div class="col-md-6">
+                <div class="chart-container">
+                  <canvas id="userYearlyLossChart"></canvas>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="chart-container">
+                  <canvas id="userStateLossChart"></canvas>
+                </div>
+              </div>
+            </div>
+           
+            <h6>Recent Disaster Impact (2023-2024)</h6>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Disaster Type</th>
+                    <th>Frequency</th>
+                    <th>Affected Regions</th>
+                    <th>Economic Impact (Cr)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Cyclones</td>
+                    <td>12</td>
+                    <td>East Coast</td>
+                    <td>1,250 Cr</td>
+                  </tr>
+                  <tr>
+                    <td>Floods</td>
+                    <td>8</td>
+                    <td>Kerala, W. Bengal</td>
+                    <td>890 Cr</td>
+                  </tr>
+                  <tr>
+                    <td>Tsunami Alerts</td>
+                    <td>3</td>
+                    <td>All Coastal Areas</td>
+                    <td>320 Cr</td>
+                  </tr>
+                  <tr>
+                    <td>Oil Spills</td>
+                    <td>5</td>
+                    <td>Mumbai, Chennai</td>
+                    <td>180 Cr</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+       
+        <!-- Incidents Tab -->
+        <div class="tab-pane fade" id="incidents" role="tabpanel">
+          <div class="panel">
+            <h5>Recent Incident Reports</h5>
+            <p class="muted">Latest incidents reported by users and authorities.</p>
+           
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Location</th>
+                    <th>Severity</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>12/05/2023</td>
+                    <td>High Waves</td>
+                    <td>Chennai Beach</td>
+                    <td><span class="badge bg-danger">High</span></td>
+                    <td><span class="badge bg-warning">Ongoing</span></td>
+                  </tr>
+                  <tr>
+                    <td>10/05/2023</td>
+                    <td>Oil Spill</td>
+                    <td>Mumbai Harbor</td>
+                    <td><span class="badge bg-warning">Medium</span></td>
+                    <td><span class="badge bg-info">Contained</span></td>
+                  </tr>
+                  <tr>
+                    <td>08/05/2023</td>
+                    <td>Flooding</td>
+                    <td>Kerala Coast</td>
+                    <td><span class="badge bg-danger">High</span></td>
+                    <td><span class="badge bg-success">Resolved</span></td>
+                  </tr>
+                  <tr>
+                    <td>05/05/2023</td>
+                    <td>Marine Debris</td>
+                    <td>Goa Beaches</td>
+                    <td><span class="badge bg-warning">Medium</span></td>
+                    <td><span class="badge bg-info">Cleanup Ongoing</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+       
+        <!-- Analysis Tab -->
+        <div class="tab-pane fade" id="analysis" role="tabpanel">
+          <div class="panel">
+            <h5>Disaster Trend Analysis</h5>
+            <div class="chart-container">
+              <canvas id="userTrendAnalysisChart"></canvas>
+            </div>
+           
+            <div class="mt-4">
+              <h6>Seasonal Patterns</h6>
+              <p>Historical data shows increased cyclone activity during April-June and October-December months, with flooding incidents peaking during monsoon season (June-September).</p>
+             
+              <div class="alert alert-info mt-3">
+                <i class="fas fa-info-circle"></i> <strong>Current Risk Assessment:</strong> Moderate risk of cyclonic activity in Bay of Bengal region. Stay updated with official alerts.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Map Section -->
+      <div class="panel map-card mt-4" id="mapSection">
+        <div class="map-controls">
+          <label><input type="checkbox" id="toggleHeatmap" checked> Show Heatmap</label>
+          <label><input type="checkbox" id="toggleWind" checked> Show Wind Markers</label>
+        </div>
+        <div id="map"></div>
+      </div>
+
+      <!-- Social Feed -->
+      <div class="panel mt-4" id="socialSection">
+        <h5><i class="fas fa-users"></i> Community Feed</h5>
+        <p class="muted">Share and view observations from other users.</p>
+        <div class="social-posts-container">
+          <!-- Social posts will be generated here -->
+        </div>
+        <div class="mt-3">
+          <h6>Submit Observation</h6>
+          <form id="observationForm">
+            <div class="form-group">
+              <textarea class="form-control" placeholder="Share your observation (e.g., 'High tides observed at Marina Beach')" rows="2" required></textarea>
+            </div>
+            <button class="btn btn-primary" type="submit"><i class="fas fa-paper-plane"></i> Share Observation</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Trending News Section -->
+      <div class="panel trending-news mt-4">
+        <h5><i class="fab fa-twitter"></i> Trending Ocean News</h5>
+        <p class="muted">Latest updates from social media about ocean conditions.</p>
+       
+        <div class="trending-item">
+          <div class="trending-source">
+            <i class="fab fa-twitter"></i> @IndiaWeather · 2h ago
+          </div>
+          <div class="trending-content">
+            <strong>Cyclone alert issued for eastern coastal regions</strong>. Fishermen advised not to venture into sea for next 48 hours. #CycloneAlert #INCOIS
+          </div>
+        </div>
+       
+        <div class="trending-item">
+          <div class="trending-source">
+            <i class="fab fa-twitter"></i> @MarineSafety · 5h ago
+          </div>
+          <div class="trending-content">
+            <strong>High wave warning</strong> for Tamil Nadu and Andhra Pradesh coasts. Waves expected to reach 3-3.5 meters. #OceanSafety
+          </div>
+        </div>
+       
+        <div class="trending-item">
+          <div class="trending-source">
+            <i class="fab fa-twitter"></i> @EnvironmentalNews · 1d ago
+          </div>
+          <div class="trending-content">
+            <strong>Coastal cleanup initiative</strong> launched in Kerala to address marine debris. Volunteers needed. #CleanOceans
+          </div>
+        </div>
+       
+        <div class="text-center mt-3">
+          <button class="btn btn-outline-primary" id="refreshNews">
+            <i class="fas fa-sync-alt"></i> Refresh News
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Government Officer Dashboard Content -->
+    <div class="officer-only" id="officerDashboard">
+      <!-- Alert Block for Government Officials -->
+      <div class="alert-block">
+        <h5><i class="fas fa-bullhorn"></i> Send Emergency Alert</h5>
+        <p>Send immediate alerts to people near hazard locations.</p>
+       
+        <form id="emergencyAlertForm">
+          <div class="row">
+            <div class="col-md-6">
+              <div class="form-group">
+                <label for="alertLocation">Location</label>
+                <input type="text" class="form-control" id="alertLocation" placeholder="Enter hazard location" required>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="form-group">
+                <label for="alertType">Hazard Type</label>
+                <select class="form-control" id="alertType" required>
+                  <option value="">Select Hazard Type</option>
+                  <option>Tsunami Warning</option>
+                  <option>Cyclone Alert</option>
+                  <option>Flood Warning</option>
+                  <option>High Wave Advisory</option>
+                  <option>Oil Spill</option>
+                  <option>Other Emergency</option>
+                </select>
+              </div>
+            </div>
+          </div>
+         
+          <div class="form-group">
+            <label for="alertMessage">Alert Message</label>
+            <textarea class="form-control" id="alertMessage" rows="3" placeholder="Enter clear instructions for people in the area" required></textarea>
+          </div>
+         
+          <div class="form-group">
+            <label>Preferred Languages</label>
+            <div class="language-checkboxes">
+              <div class="language-checkbox">
+                <input type="checkbox" id="langEnglish" checked>
+                <label for="langEnglish">English</label>
+              </div>
+              <div class="language-checkbox">
+                <input type="checkbox" id="langHindi">
+                <label for="langHindi">Hindi</label>
+              </div>
+              <div class="language-checkbox">
+                <input type="checkbox" id="langTamil">
+                <label for="langTamil">Tamil</label>
+              </div>
+              <div class="language-checkbox">
+                <input type="checkbox" id="langTelugu">
+                <label for="langTelugu">Telugu</label>
+              </div>
+              <div class="language-checkbox">
+                <input type="checkbox" id="langMalayalam">
+                <label for="langMalayalam">Malayalam</label>
+              </div>
+              <div class="language-checkbox">
+                <input type="checkbox" id="langBengali">
+                <label for="langBengali">Bengali</label>
+              </div>
+            </div>
+          </div>
+         
+          <button class="btn btn-light" type="submit"><i class="fas fa-paper-plane"></i> Send Emergency Alert</button>
+        </form>
+      </div>
+
+      <!-- Enhanced Officer Dashboard Grid -->
+      <div class="officer-dashboard-grid">
+        <div class="dashboard-card">
+          <div class="dashboard-card-header">
+            <h5 class="dashboard-card-title">Total Reports</h5>
+            <div class="dashboard-card-icon">
+              <i class="fas fa-flag"></i>
+            </div>
+          </div>
+          <div class="dashboard-card-value">120</div>
+          <div class="dashboard-card-change change-positive">
+            <i class="fas fa-arrow-up"></i> 12% from last week
+          </div>
+        </div>
+       
+        <div class="dashboard-card">
+          <div class="dashboard-card-header">
+            <h5 class="dashboard-card-title">Active Incidents</h5>
+            <div class="dashboard-card-icon">
+              <i class="fas fa-exclamation-circle"></i>
+            </div>
+          </div>
+          <div class="dashboard-card-value">15</div>
+          <div class="dashboard-card-change change-negative">
+            <i class="fas fa-arrow-up"></i> 5% from last week
+          </div>
+        </div>
+       
+        <div class="dashboard-card">
+          <div class="dashboard-card-header">
+            <h5 class="dashboard-card-title">Avg. Response Time</h5>
+            <div class="dashboard-card-icon">
+              <i class="fas fa-clock"></i>
+            </div>
+          </div>
+          <div class="dashboard-card-value">2.4h</div>
+          <div class="dashboard-card-change change-positive">
+            <i class="fas fa-arrow-down"></i> 18% improvement
+          </div>
+        </div>
+       
+        <div class="dashboard-card">
+          <div class="dashboard-card-header">
+            <h5 class="dashboard-card-title">Resources Deployed</h5>
+            <div class="dashboard-card-icon">
+              <i class="fas fa-truck"></i>
+            </div>
+          </div>
+          <div class="dashboard-card-value">42</div>
+          <div class="dashboard-card-change">
+            <i class="fas fa-minus"></i> No change
+          </div>
+        </div>
+      </div>
+
+      <!-- Incident Status Overview -->
+      <div class="panel">
+        <h5><i class="fas fa-chart-pie"></i> Incident Status Overview</h5>
+        <div class="incident-status-grid">
+          <div class="status-item status-pending">
+            <div class="status-item-count">8</div>
+            <div class="status-item-label">Pending</div>
+          </div>
+          <div class="status-item status-in-progress">
+            <div class="status-item-count">5</div>
+            <div class="status-item-label">In Progress</div>
+          </div>
+          <div class="status-item status-resolved">
+            <div class="status-item-count">32</div>
+            <div class="status-item-label">Resolved</div>
+          </div>
+          <div class="status-item status-critical">
+            <div class="status-item-count">3</div>
+            <div class="status-item-label">Critical</div>
+          </div>
+        </div>
+       
+        <!-- Quick Actions -->
+        <div class="quick-actions">
+          <div class="quick-action-btn">
+            <div class="quick-action-icon">
+              <i class="fas fa-download"></i>
+            </div>
+            <div class="quick-action-label">Export Data</div>
+          </div>
+          <div class="quick-action-btn">
+            <div class="quick-action-icon">
+              <i class="fas fa-bell"></i>
+            </div>
+            <div class="quick-action-label">Send Alert</div>
+          </div>
+          <div class="quick-action-btn">
+            <div class="quick-action-icon">
+              <i class="fas fa-users"></i>
+            </div>
+            <div class="quick-action-label">Assign Team</div>
+          </div>
+          <div class="quick-action-btn">
+            <div class="quick-action-icon">
+              <i class="fas fa-chart-line"></i>
+            </div>
+            <div class="quick-action-label">Generate Report</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Map Section -->
+      <div class="panel map-card" id="mapSectionOfficer">
+        <div class="map-controls">
+          <label><input type="checkbox" id="toggleHeatmapOfficer" checked> Show Heatmap</label>
+          <label><input type="checkbox" id="toggleWindOfficer" checked> Show Wind Markers</label>
+        </div>
+        <div id="mapOfficer"></div>
+      </div>
+
+      <!-- User Reports Section -->
+      <div class="panel mt-4" id="userReportsSection">
+        <h5><i class="fas fa-clipboard-list"></i> User Reports</h5>
+        <p class="muted">View and manage reports submitted by users.</p>
+       
+        <div class="filter-controls">
+          <div class="filter-control active" data-filter="all">All Reports</div>
+          <div class="filter-control" data-filter="new">New</div>
+          <div class="filter-control" data-filter="in-progress">In Progress</div>
+          <div class="filter-control" data-filter="resolved">Resolved</div>
+        </div>
+       
+        <div class="user-reports-container">
+          <!-- User reports will be generated here -->
+        </div>
+      </div>
+
+      <!-- Statistics and Reports Section -->
+      <ul class="nav nav-tabs mt-4" id="officerTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="stats-tab" data-bs-toggle="tab" data-bs-target="#stats" type="button" role="tab">Disaster Statistics</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="reports-tab" data-bs-toggle="tab" data-bs-target="#reports" type="button" role="tab">Incident Reports</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="analysis-tab" data-bs-toggle="tab" data-bs-target="#analysis" type="button" role="tab">Trend Analysis</button>
+        </li>
+      </ul>
+     
+      <div class="tab-content mt-3" id="officerTabContent">
+        <!-- Statistics Tab -->
+        <div class="tab-pane fade show active" id="stats" role="tabpanel">
+          <div class="panel">
+            <h5><i class="fas fa-chart-bar"></i> Disaster Impact Statistics</h5>
+            <p class="muted">Comprehensive overview of disaster impacts across coastal regions</p>
+           
+            <div class="row mb-4">
+              <div class="col-md-6">
+                <div class="chart-container">
+                  <canvas id="economicImpactChart"></canvas>
+                </div>
+                <p class="text-center muted mt-2">Economic Impact by Disaster Type (₹ Crores)</p>
+              </div>
+              <div class="col-md-6">
+                <div class="chart-container">
+                  <canvas id="regionalImpactChart"></canvas>
+                </div>
+                <p class="text-center muted mt-2">Regional Impact Distribution</p>
+              </div>
+            </div>
+           
+            <h6>Detailed Impact Metrics</h6>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Disaster Type</th>
+                    <th>Frequency</th>
+                    <th>Affected Population</th>
+                    <th>Economic Impact (Cr)</th>
+                    <th>Response Time (Avg)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Cyclones</td>
+                    <td>12</td>
+                    <td>245,000</td>
+                    <td>1,250</td>
+                    <td>4.2h</td>
+                  </tr>
+                  <tr>
+                    <td>Floods</td>
+                    <td>8</td>
+                    <td>189,000</td>
+                    <td>890</td>
+                    <td>3.8h</td>
+                  </tr>
+                  <tr>
+                    <td>Tsunami Alerts</td>
+                    <td>3</td>
+                    <td>1,200,000</td>
+                    <td>320</td>
+                    <td>1.2h</td>
+                  </tr>
+                  <tr>
+                    <td>Oil Spills</td>
+                    <td>5</td>
+                    <td>42,000</td>
+                    <td>180</td>
+                    <td>6.5h</td>
+                  </tr>
+                  <tr>
+                    <td>High Waves</td>
+                    <td>15</td>
+                    <td>78,000</td>
+                    <td>95</td>
+                    <td>2.3h</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+       
+        <!-- Reports Tab -->
+        <div class="tab-pane fade" id="reports" role="tabpanel">
+          <div class="panel">
+            <h5><i class="fas fa-clipboard-list"></i> Incident Management</h5>
+            <p class="muted">Manage and track all reported incidents</p>
+           
+            <div class="row mb-4">
+              <div class="col-md-6">
+                <div class="chart-container">
+                  <canvas id="incidentStatusChart"></canvas>
+                </div>
+                <p class="text-center muted mt-2">Incident Status Distribution</p>
+              </div>
+              <div class="col-md-6">
+                <div class="chart-container">
+                  <canvas id="responseTimeChart"></canvas>
+                </div>
+                <p class="text-center muted mt-2">Response Time Trends</p>
+              </div>
+            </div>
+           
+            <h6>Recent Incident Reports</h6>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Reported</th>
+                    <th>Type</th>
+                    <th>Location</th>
+                    <th>Severity</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>#INC-1024</td>
+                    <td>12/05/2023 14:30</td>
+                    <td>Cyclone Warning</td>
+                    <td>Coastal Andhra</td>
+                    <td><span class="badge bg-danger">High</span></td>
+                    <td><span class="badge bg-warning">Monitoring</span></td>
+                    <td>
+                      <button class="btn btn-sm btn-outline-primary me-1"><i class="fas fa-eye"></i></button>
+                      <button class="btn btn-sm btn-outline-success"><i class="fas fa-edit"></i></button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>#INC-1023</td>
+                    <td>10/05/2023 09:15</td>
+                    <td>Flood Warning</td>
+                    <td>Kerala</td>
+                    <td><span class="badge bg-warning">Medium</span></td>
+                    <td><span class="badge bg-success">Resolved</span></td>
+                    <td>
+                      <button class="btn btn-sm btn-outline-primary me-1"><i class="fas fa-eye"></i></button>
+                      <button class="btn btn-sm btn-outline-success"><i class="fas fa-edit"></i></button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>#INC-1022</td>
+                    <td>08/05/2023 16:45</td>
+                    <td>Oil Spill</td>
+                    <td>Chennai Coast</td>
+                    <td><span class="badge bg-danger">Critical</span></td>
+                    <td><span class="badge bg-info">Active</span></td>
+                    <td>
+                      <button class="btn btn-sm btn-outline-primary me-1"><i class="fas fa-eye"></i></button>
+                      <button class="btn btn-sm btn-outline-success"><i class="fas fa-edit"></i></button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>#INC-1021</td>
+                    <td: 07/05/2023 11:20</td>
+                    <td>High Waves</td>
+                    <td>Goa Beaches</td>
+                    <td><span class="badge bg-warning">Medium</span></td>
+                    <td><span class="badge bg-success">Resolved</span></td>
+                    <td>
+                      <button class="btn btn-sm btn-outline-primary me-1"><i class="fas fa-eye"></i></button>
+                      <button class="btn btn-sm btn-outline-success"><i class="fas fa-edit"></i></button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+           
+            <div class="incident-timeline mt-4">
+              <h6>Recent Activity Timeline</h6>
+              <div class="timeline-item">
+                <div class="timeline-date">12/05/2023 15:45</div>
+                <div class="timeline-content">Team deployed to Coastal Andhra for cyclone preparedness</div>
+              </div>
+              <div class="timeline-item">
+                <div class="timeline-date">12/05/2023 12:30</div>
+                <div class="timeline-content">Cyclone warning issued for eastern coastal regions</div>
+              </div>
+              <div class="timeline-item">
+                <div class="timeline-date">11/05/2023 17:20</div>
+                <div class="timeline-content">Oil spill containment efforts 75% complete in Chennai</div>
+              </div>
+              <div class="timeline-item">
+                <div class="timeline-date">10/05/2023 14:15</div>
+                <div class="timeline-content">Flood warning in Kerala resolved, all teams recalled</div>
+              </div>
+            </div>
+          </div>
+        </div>
+       
+        <!-- Analysis Tab -->
+        <div class="tab-pane fade" id="analysis" role="tabpanel">
+          <div class="panel">
+            <h5><i class="fas fa-chart-line"></i> Disaster Trend Analysis</h5>
+            <p class="muted">Historical trends and predictive analysis for disaster management</p>
+           
+            <div class="row mb-4">
+              <div class="col-md-8">
+                <div class="chart-container">
+                  <canvas id="disasterTrendChart"></canvas>
+                </div>
+                <p class="text-center muted mt-2">Monthly Disaster Trends (2023-2024)</p>
+              </div>
+              <div class="col-md-4">
+                <div class="chart-container">
+                  <canvas id="seasonalityChart"></canvas>
+                </div>
+                <p class="text-center muted mt-2">Seasonal Patterns</p>
+              </div>
+            </div>
+           
+            <div class="row mb-4">
+              <div class="col-md-6">
+                <div class="chart-container">
+                  <canvas id="forecastChart"></canvas>
+                </div>
+                <p class="text-center muted mt-2">Risk Forecast for Next 30 Days</p>
+              </div>
+              <div class="col-md-6">
+                <div class="chart-container">
+                  <canvas id="efficiencyChart"></canvas>
+                </div>
+                <p class="text-center muted mt-2">Response Efficiency Trends</p>
+              </div>
+            </div>
+           
+            <div class="officer-tools mt-4">
+              <div class="panel">
+                <h6><i class="fas fa-chart-line"></i> Predictive Analysis</h6>
+                <p>Based on historical data, there's a 65% probability of cyclone formation in the Bay of Bengal region in the next 7 days.</p>
+                <div class="progress mb-2">
+                  <div class="progress-bar bg-warning" role="progressbar" style="width: 65%" aria-valuenow="65" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+                <small class="text-muted">Moderate risk level - recommend increased monitoring</small>
+               
+                <div class="mt-3">
+                  <h6>Recommended Actions</h6>
+                  <ul class="list-group list-group-flush">
+                    <li class="list-group-item">Increase monitoring of Bay of Bengal region</li>
+                    <li class="list-group-item">Alert coastal communities in Eastern states</li>
+                    <li class="list-group-item">Pre-position response teams in vulnerable areas</li>
+                  </ul>
+                </div>
+              </div>
+             
+              <div class="panel">
+                <h6><i class="fas fa-tasks"></i> Resource Coordination</h6>
+                <p>Current resource allocation status:</p>
+                <ul class="list-group list-group-flush">
+                  <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Rescue Boats
+                    <span class="badge bg-primary rounded-pill">42/50</span>
+                  </li>
+                  <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Emergency Kits
+                    <span class="badge bg-success rounded-pill">120/100</span>
+                  </li>
+                  <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Personnel Deployed
+                    <span class="badge bg-warning rounded-pill">85/120</span>
+                  </li>
+                  <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Medical Supplies
+                    <span class="badge bg-danger rounded-pill">45/80</span>
+                  </li>
+                </ul>
+                <button class="btn btn-sm btn-outline-primary mt-2">Request Resources</button>
+               
+                <div class="mt-3">
+                  <h6>Resource Deployment Plan</h6>
+                  <div class="table-responsive">
+                    <table class="table table-sm">
+                      <thead>
+                        <tr>
+                          <th>Region</th>
+                          <th>Teams</th>
+                          <th>Equipment</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td>Tamil Nadu</td>
+                          <td>5</td>
+                          <td>12 boats</td>
+                          <td><span class="badge bg-success">Deployed</span></td>
+                        </tr>
+                        <tr>
+                          <td>Andhra Pradesh</td>
+                          <td>3</td>
+                          <td>8 boats</td>
+                          <td><span class="badge bg-warning">En route</span></td>
+                        </tr>
+                        <tr>
+                          <td>Odisha</td>
+                          <td>4</td>
+                          <td>10 boats</td>
+                          <td><span class="badge bg-info">Standby</span></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Analyst Dashboard Content -->
+    <div class="analyst-only" id="analystDashboard">
+      <div class="analyst-grid">
+        <div class="analytics-card">
+          <div class="analytics-card-header">
+            <h5 class="analytics-card-title">Total Reports Analyzed</h5>
+            <div class="analytics-card-icon">
+              <i class="fas fa-chart-bar"></i>
+            </div>
+          </div>
+          <div class="analytics-card-value">1,247</div>
+          <div class="analytics-card-change change-positive">
+            <i class="fas fa-arrow-up"></i> 18% from last month
+          </div>
+        </div>
+       
+        <div class="analytics-card">
+          <div class="analytics-card-header">
+            <h5 class="analytics-card-title">Prediction Accuracy</h5>
+            <div class="analytics-card-icon">
+              <i class="fas fa-bullseye"></i>
+            </div>
+          </div>
+          <div class="analytics-card-value">87.3%</div>
+          <div class="analytics-card-change change-positive">
+            <i class="fas fa-arrow-up"></i> 3.2% improvement
+          </div>
+        </div>
+       
+        <div class="analytics-card">
+          <div class="analytics-card-header">
+            <h5 class="analytics-card-title">Risk Level</h5>
+            <div class="analytics-card-icon">
+              <i class="fas fa-exclamation-triangle"></i>
+            </div>
+          </div>
+          <div class="analytics-card-value">Moderate</div>
+          <div class="analytics-card-change change-negative">
+            <i class="fas fa-arrow-up"></i> Increased from Low
+          </div>
+        </div>
+      </div>
+
+      <!-- Analytics Section -->
+      <div class="panel mt-4" id="analyticsSection">
+        <h5><i class="fas fa-chart-bar"></i> Advanced Analytics</h5>
+        <p class="muted">Detailed analysis of ocean hazard patterns and trends.</p>
+       
+        <ul class="nav nav-tabs" id="analystTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="patterns-tab" data-bs-toggle="tab" data-bs-target="#patterns" type="button" role="tab">Pattern Analysis</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="predictions-tab" data-bs-toggle="tab" data-bs-target="#predictions" type="button" role="tab">Predictive Models</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="correlations-tab" data-bs-toggle="tab" data-bs-target="#correlations" type="button" role="tab">Correlation Analysis</button>
+          </li>
+        </ul>
+       
+        <div class="tab-content mt-3" id="analystTabContent">
+          <!-- Patterns Tab -->
+          <div class="tab-pane fade show active" id="patterns" role="tabpanel">
+            <div class="row mb-4">
+              <div class="col-md-6">
+                <div class="chart-container">
+                  <canvas id="seasonalPatternChart"></canvas>
+                </div>
+                <p class="text-center muted mt-2">Seasonal Pattern Analysis</p>
+              </div>
+              <div class="col-md-6">
+                <div class="chart-container">
+                  <canvas id="geographicDistributionChart"></canvas>
+                </div>
+                <p class="text-center muted mt-2">Geographic Distribution</p>
+              </div>
+            </div>
+           
+            <div class="row mb-4">
+              <div class="col-md-12">
+                <div class="chart-container">
+                  <canvas id="timeSeriesChart"></canvas>
+                </div>
+                <p class="text-center muted mt-2">Time Series Analysis (2019-2024)</p>
+              </div>
+            </div>
+          </div>
+         
+          <!-- Predictions Tab -->
+          <div class="tab-pane fade" id="predictions" role="tabpanel">
+            <div class="row mb-4">
+              <div class="col-md-6">
+                <div class="chart-container">
+                  <canvas id="riskForecastChart"></canvas>
+                </div>
+                <p class="text-center muted mt-2">30-Day Risk Forecast</p>
+              </div>
+              <div class="col-md-6">
+                <div class="chart-container">
+                  <canvas id="severityPredictionChart"></canvas>
+                </div>
+                <p class="text-center muted mt-2">Severity Prediction Model</p>
+              </div>
+            </div>
+           
+            <div class="panel">
+              <h6>Prediction Insights</h6>
+              <p>Based on current models, there is a 72% probability of increased cyclone activity in the Bay of Bengal region over the next 30 days.</p>
+             
+              <div class="alert alert-warning mt-3">
+                <i class="fas fa-exclamation-triangle"></i> <strong>High Confidence Alert:</strong> Models indicate a strong correlation between current sea surface temperatures and historical cyclone patterns.
+              </div>
+            </div>
+          </div>
+         
+          <!-- Correlations Tab -->
+          <div class="tab-pane fade" id="correlations" role="tabpanel">
+            <div class="row mb-4">
+              <div class="col-md-6">
+                <div class="chart-container">
+                  <canvas id="correlationMatrixChart"></canvas>
+                </div>
+                <p class="text-center muted mt-2">Variable Correlation Matrix</p>
+              </div>
+              <div class="col-md-6">
+                <div class="chart-container">
+                  <canvas id="clusterAnalysisChart"></canvas>
+                </div>
+                <p class="text-center muted mt-2">Cluster Analysis</p>
+              </div>
+            </div>
+           
+            <div class="panel">
+              <h6>Key Correlations Identified</h6>
+              <ul>
+                <li>Strong positive correlation (r=0.82) between sea surface temperature and cyclone frequency</li>
+                <li>Moderate negative correlation (r=-0.64) between monsoon intensity and oil spill incidents</li>
+                <li>Weak positive correlation (r=0.37) between fishing activity and marine debris reports</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Map Section for Analyst -->
+      <div class="panel map-card mt-4" id="mapSectionAnalyst">
+        <div class="map-controls">
+          <label><input type="checkbox" id="toggleHeatmapAnalyst" checked> Show Heatmap</label>
+          <label><input type="checkbox" id="toggleWindAnalyst" checked> Show Wind Markers</label>
+          <label><input type="checkbox" id="togglePredictions" checked> Show Predictions</label>
+        </div>
+        <div id="mapAnalyst"></div>
+      </div>
+
+      <!-- Data Export Section -->
+      <div class="panel mt-4">
+        <h5><i class="fas fa-download"></i> Data Export</h5>
+        <p class="muted">Export analytical data for further processing.</p>
+       
+        <div class="row">
+          <div class="col-md-6">
+            <div class="form-group">
+              <label for="exportDataType">Data Type</label>
+              <select class="form-control" id="exportDataType">
+                <option>Hazard Reports</option>
+                <option>Weather Data</option>
+                <option>Prediction Models</option>
+                <option>Correlation Analysis</option>
+              </select>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="form-group">
+              <label for="exportFormat">Format</label>
+              <select class="form-control" id="exportFormat">
+                <option>CSV</option>
+                <option>JSON</option>
+                <option>Excel</option>
+                <option>PDF Report</option>
+              </select>
+            </div>
+          </div>
+        </div>
+       
+        <div class="form-group">
+          <label for="dateRange">Date Range</label>
+          <div class="row">
+                        <div class="col-md-6">
+              <input type="date" class="form-control" id="startDate" placeholder="Start Date">
+            </div>
+            <div class="col-md-6">
+              <input type="date" class="form-control" id="endDate" placeholder="End Date">
+            </div>
+          </div>
+        </div>
+       
+        <button class="btn btn-primary" id="exportDataBtn">
+          <i class="fas fa-download"></i> Export Data
+        </button>
+      </div>
+    </div>
+
+    <footer>
+      &copy; 2025 Jal-Sanket. All rights reserved.
+    </footer>
+  </div>
+</div>
+
+<!-- Toast notification -->
+<div class="toast" id="toast"></div>
+
+<!-- JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+
+<script>
+// Wait for DOM to be fully loaded before running the script
+document.addEventListener('DOMContentLoaded', function() {
+  // ==== AUTH LOGIC ====
+  const authPage = document.getElementById('auth-page');
+  const appShell = document.getElementById('appShell');
+  const loginForm = document.getElementById('loginForm');
+  const registerForm = document.getElementById('registerForm');
+  const toast = document.getElementById('toast');
+  let currentUser = null;
+  let userMap, officerMap, analystMap;
+
+  // Show toast notification
+  function showToast(message, type = 'success') {
+    toast.textContent = message;
+    toast.className = `toast ${type} visible`;
+   
+    setTimeout(() => {
+      toast.classList.remove('visible');
+    }, 3000);
+  }
+
+  // Initialize page with saved theme
+  if (localStorage.getItem('darkMode') === 'true') {
+    document.body.classList.add('dark');
+  }
+
+  // Toggle government ID field based on user type
+  document.querySelectorAll('.user-type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const userType = btn.dataset.type;
+      const governmentIdField = document.getElementById('governmentIdField');
+      const analystIdField = document.getElementById('analystIdField');
+     
+      if (userType === 'officer') {
+        governmentIdField.style.display = 'block';
+        analystIdField.style.display = 'none';
+        document.getElementById('governmentId').setAttribute('required', 'true');
+        document.getElementById('analystId').removeAttribute('required');
+      } else if (userType === 'analyst') {
+        governmentIdField.style.display = 'none';
+        analystIdField.style.display = 'block';
+        document.getElementById('governmentId').removeAttribute('required');
+        document.getElementById('analystId').setAttribute('required', 'true');
+      } else {
+        governmentIdField.style.display = 'none';
+        analystIdField.style.display = 'none';
+        document.getElementById('governmentId').removeAttribute('required');
+        document.getElementById('analystId').removeAttribute('required');
+      }
+    });
+  });
+
+  document.querySelectorAll('.auth-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
+      document.getElementById(tab.dataset.tab + 'Form').classList.add('active');
+    });
+  });
+
+  document.getElementById('toggleLoginPassword').addEventListener('click', () => {
+    const pass = document.getElementById('loginPassword');
+    const icon = document.getElementById('toggleLoginPassword').querySelector('i');
+    pass.type = pass.type === 'password' ? 'text' : 'password';
+    icon.classList.toggle('fa-eye');
+    icon.classList.toggle('fa-eye-slash');
+  });
+ 
+  document.getElementById('toggleRegisterPassword').addEventListener('click', () => {
+    const pass = document.getElementById('registerPassword');
+    const icon = document.getElementById('toggleRegisterPassword').querySelector('i');
+    pass.type = pass.type === 'password' ? 'text' : 'password';
+    icon.classList.toggle('fa-eye');
+    icon.classList.toggle('fa-eye-slash');
+  });
+
+  document.querySelectorAll('#loginForm .user-type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#loginForm .user-type-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('loginUserType').value = btn.dataset.type;
+    });
+  });
+ 
+  document.querySelectorAll('#registerForm .user-type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#registerForm .user-type-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('registerUserType').value = btn.dataset.type;
+     
+      // Toggle government ID field
+      const governmentIdField = document.getElementById('governmentIdField');
+      const analystIdField = document.getElementById('analystIdField');
+     
+      if (btn.dataset.type === 'officer') {
+        governmentIdField.style.display = 'block';
+        analystIdField.style.display = 'none';
+        document.getElementById('governmentId').setAttribute('required', 'true');
+        document.getElementById('analystId').removeAttribute('required');
+      } else if (btn.dataset.type === 'analyst') {
+        governmentIdField.style.display = 'none';
+        analystIdField.style.display = 'block';
+        document.getElementById('governmentId').removeAttribute('required');
+        document.getElementById('analystId').setAttribute('required', 'true');
+      } else {
+        governmentIdField.style.display = 'none';
+        analystIdField.style.display = 'none';
+        document.getElementById('governmentId').removeAttribute('required');
+        document.getElementById('analystId').removeAttribute('required');
+      }
+    });
+  });
+
+  document.querySelectorAll('.demo-account').forEach(el => {
+    el.addEventListener('click', () => {
+      document.getElementById('loginEmail').value = el.dataset.email;
+      document.getElementById('loginPassword').value = el.dataset.password;
+      document.getElementById('loginUserType').value = el.dataset.type;
+      document.querySelectorAll('#loginForm .user-type-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelector(`#loginForm .user-type-btn[data-type="${el.dataset.type}"]`).classList.add('active');
+     
+      // Show feedback
+      showToast(`Demo ${el.dataset.type} account credentials filled`, 'success');
+    });
+  });
+
+  // Handle guest login (continue without login)
+  document.querySelector('.guest-access-btn')?.addEventListener('click', () => {
+    currentUser = {
+      email: 'guest@incois.com',
+      type: 'user',
+      isGuest: true
+    };
+    showApp('user');
+    showToast('Continuing as guest user', 'success');
+  });
+
+  function showApp(userType) {
+    authPage.classList.add('hidden');
+    
+    // Set dashboard title for guest users
+    const dashboardTitle = currentUser?.isGuest ? 
+      'Guest User Dashboard - Limited Access' : 
+      `${userType.charAt(0).toUpperCase() + userType.slice(1)} Dashboard`;
+    
+    document.getElementById('dashboardTitle').textContent = dashboardTitle;
+    
+    // Show appropriate dashboard based on user type
+    if (userType === 'officer') {
+      document.getElementById('userDashboard').style.display = 'none';
+      document.getElementById('officerDashboard').style.display = 'block';
+      document.getElementById('analystDashboard').style.display = 'none';
+      document.querySelectorAll('.officer-only').forEach(el => el.style.display = 'block');
+      document.querySelectorAll('.user-only').forEach(el => el.style.display = 'none');
+      document.querySelectorAll('.analyst-only').forEach(el => el.style.display = 'none');
+      initOfficerCharts();
+      initOfficerMap(); // Initialize officer map
+      generateUserReports(); // Generate user reports for officer view
+    } else if (userType === 'analyst') {
+      document.getElementById('userDashboard').style.display = 'none';
+      document.getElementById('officerDashboard').style.display = 'none';
+      document.getElementById('analystDashboard').style.display = 'block';
+      document.querySelectorAll('.officer-only').forEach(el => el.style.display = 'none');
+      document.querySelectorAll('.user-only').forEach(el => el.style.display = 'none');
+      document.querySelectorAll('.analyst-only').forEach(el => el.style.display = 'block');
+      initAnalystCharts();
+      initAnalystMap(); // Initialize analyst map
+    } else {
+      // User dashboard (including guest)
+      document.getElementById('userDashboard').style.display = 'block';
+      document.getElementById('officerDashboard').style.display = 'none';
+      document.getElementById('analystDashboard').style.display = 'none';
+      document.querySelectorAll('.officer-only').forEach(el => el.style.display = 'none');
+      document.querySelectorAll('.user-only').forEach(el => el.style.display = 'block');
+      document.querySelectorAll('.analyst-only').forEach(el => el.style.display = 'none');
+      initUserCharts();
+      initUserMap(); // Initialize user map
+    }
+    appShell.classList.add('visible');
+    
+    setTimeout(() => {
+      // Show welcome message
+      const userName = currentUser?.isGuest ? 'Guest' : document.getElementById('loginEmail').value.split('@')[0];
+      const userTypeDisplay = currentUser?.isGuest ? 'guest' : userType;
+      showToast(`Welcome ${userName}! (${userTypeDisplay} mode)`, 'success');
+    }, 50);
+  }
+
+  loginForm.addEventListener('submit', e => {
+    e.preventDefault();
+    const userType = document.getElementById('loginUserType').value;
+    currentUser = {
+      email: document.getElementById('loginEmail').value,
+      type: userType
+    };
+    showApp(userType);
+  });
+ 
+  registerForm.addEventListener('submit', e => {
+    e.preventDefault();
+    const userType = document.getElementById('registerUserType').value;
+    currentUser = {
+      name: document.getElementById('registerName').value,
+      email: document.getElementById('registerEmail').value,
+      type: userType
+    };
+   
+    // If officer, add government ID to user data
+    if (userType === 'officer') {
+      currentUser.governmentId = document.getElementById('governmentId').value;
+    }
+   
+    // If analyst, add analyst ID to user data
+    if (userType === 'analyst') {
+      currentUser.analystId = document.getElementById('analystId').value;
+    }
+   
+    showApp(userType);
+    showToast('Account created successfully!', 'success');
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', e => {
+    e.preventDefault();
+    setTimeout(() => {
+      authPage.classList.remove('hidden');
+      loginForm.reset();
+      registerForm.reset();
+      document.getElementById('userDashboard').style.display = 'none';
+      document.getElementById('officerDashboard').style.display = 'none';
+      document.getElementById('analystDashboard').style.display = 'none';
+      
+      const message = currentUser?.isGuest ? 
+        'Guest session ended' : 
+        'Logged out successfully';
+      
+      showToast(message, 'success');
+      currentUser = null;
+    }, 500);
+  });
+
+  const darkToggle = document.getElementById('darkModeToggle');
+  darkToggle.addEventListener('click', () => {
+    document.body.classList.toggle('dark');
+    localStorage.setItem('darkMode', document.body.classList.contains('dark'));
+   
+    // Show mode change notification
+    const isDark = document.body.classList.contains('dark');
+    showToast(`${isDark ? 'Dark' : 'Light'} mode activated`, 'success');
+  });
+
+  // ==== LEAFLET MAP ====
+  function initUserMap() {
+    // Check if map container exists
+    if (!document.getElementById('map')) return;
+   
+    // Remove existing map if it exists
+    if (userMap) {
+      userMap.remove();
+    }
+   
+    // Create new map
+    userMap = L.map('map').setView([20.5937, 78.9629], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(userMap);
+
+    // Sample data
+    const hazardPoints = [
+      {lat:19.0760, lng:72.8777, intensity:0.8},
+      {lat:13.0827, lng:80.2707, intensity:0.5},
+      {lat:22.5726, lng:88.3639, intensity:0.7},
+      {lat:17.6868, lng:83.2185, intensity:0.6},
+      {lat:15.9129, lng:80.4676, intensity:0.9}
+    ];
+   
+    const windData = [
+      {lat:19.0760, lng:72.8777, speed: 35},
+      {lat:13.0827, lng:80.2707, speed: 40},
+      {lat:22.5726, lng:88.3639, speed: 25},
+      {lat:17.6868, lng:83.2185, speed: 30},
+      {lat:15.9129, lng:80.4676, speed: 45}
+    ];
+
+    // Wind markers
+    const windMarkers = windData.map(w => {
+      const marker = L.divIcon({ className:'wind-marker', html:`<span>${w.speed} km/h</span>` });
+      return L.marker([w.lat, w.lng], { icon: marker }).addTo(userMap);
+    });
+
+    // Heatmap layer (simple circles)
+    const heatLayer = L.layerGroup(hazardPoints.map(h =>
+      L.circle([h.lat, h.lng], {
+        radius: h.intensity * 50000,
+        color: '#ff6b6b',
+        fillColor: '#ff5252',
+        weight: 1,
+        fillOpacity: 0.3
+      })
+    )).addTo(userMap);
+
+    // Add event listeners for map controls
+    const toggleHeatmap = document.getElementById('toggleHeatmap');
+    const toggleWind = document.getElementById('toggleWind');
+   
+    if (toggleHeatmap) {
+      toggleHeatmap.addEventListener('change', e => {
+        if(e.target.checked) userMap.addLayer(heatLayer);
+        else userMap.removeLayer(heatLayer);
+      });
+    }
+   
+    if (toggleWind) {
+      toggleWind.addEventListener('change', e => {
+        if(e.target.checked) windMarkers.forEach(m => m.addTo(userMap));
+        else windMarkers.forEach(m => userMap.removeLayer(m));
+      });
+    }
+  }
+
+  function initOfficerMap() {
+    // Check if map container exists
+    if (!document.getElementById('mapOfficer')) return;
+   
+    // Remove existing map if it exists
+    if (officerMap) {
+      officerMap.remove();
+    }
+   
+    // Create new map
+    officerMap = L.map('mapOfficer').setView([20.5937, 78.9629], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(officerMap);
+
+    // More detailed data for officer view
+    const hazardPoints = [
+      {lat:19.0760, lng:72.8777, intensity:0.8, type: 'cyclone'},
+      {lat:13.0827, lng:80.2707, intensity:0.5, type: 'flood'},
+      {lat:22.5726, lng:88.3639, intensity:0.7, type: 'tsunami'},
+      {lat:17.6868, lng:83.2185, intensity:0.6, type: 'oilspill'},
+      {lat:15.9129, lng:80.4676, intensity:0.9, type: 'cyclone'},
+      {lat:16.5062, lng:80.6480, intensity:0.4, type: 'flood'},
+      {lat:18.5204, lng:73.8567, intensity:0.3, type: 'highwave'}
+    ];
+   
+    const windData = [
+      {lat:19.0760, lng:72.8777, speed: 35, direction: 'NE'},
+      {lat:13.0827, lng:80.2707, speed: 40, direction: 'SW'},
+      {lat:22.5726, lng:88.3639, speed: 25, direction: 'E'},
+      {lat:17.6868, lng:83.2185, speed: 30, direction: 'NW'},
+      {lat:15.9129, lng:80.4676, speed: 45, direction: 'S'},
+      {lat:16.5062, lng:80.6480, speed: 20, direction: 'W'},
+      {lat:18.5204, lng:73.8567, speed: 35, direction: 'SE'}
+    ];
+
+    // Wind markers with more info
+    const windMarkers = windData.map(w => {
+      const marker = L.divIcon({
+        className:'wind-marker',
+        html:`<span>${w.speed} km/h<br>${w.direction}</span>`
+      });
+      return L.marker([w.lat, w.lng], { icon: marker }).addTo(officerMap);
+    });
+
+    // Heatmap layer with different colors based on type
+    const heatLayer = L.layerGroup(hazardPoints.map(h => {
+      let color = '#ff6b6b';
+      if (h.type === 'cyclone') color = '#ff5252';
+      if (h.type === 'flood') color = '#4facfe';
+      if (h.type === 'tsunami') color = '#38ef7d';
+      if (h.type === 'oilspill') color = '#6a3093';
+     
+      return L.circle([h.lat, h.lng], {
+        radius: h.intensity * 50000,
+        color: color,
+        fillColor: color,
+        weight: 1,
+        fillOpacity: 0.3
+      });
+    })).addTo(officerMap);
+
+    // Add event listeners for map controls
+    const toggleHeatmapOfficer = document.getElementById('toggleHeatmapOfficer');
+    const toggleWindOfficer = document.getElementById('toggleWindOfficer');
+   
+    if (toggleHeatmapOfficer) {
+      toggleHeatmapOfficer.addEventListener('change', e => {
+        if(e.target.checked) officerMap.addLayer(heatLayer);
+        else officerMap.removeLayer(heatLayer);
+      });
+    }
+   
+    if (toggleWindOfficer) {
+      toggleWindOfficer.addEventListener('change', e => {
+        if(e.target.checked) windMarkers.forEach(m => m.addTo(officerMap));
+        else windMarkers.forEach(m => officerMap.removeLayer(m));
+      });
+    }
+  }
+
+  function initAnalystMap() {
+    // Check if map container exists
+    if (!document.getElementById('mapAnalyst')) return;
+   
+    // Remove existing map if it exists
+    if (analystMap) {
+      analystMap.remove();
+    }
+   
+    // Create new map
+    analystMap = L.map('mapAnalyst').setView([20.5937, 78.9629], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(analystMap);
+
+    // Advanced data for analyst view with prediction zones
+    const hazardPoints = [
+      {lat:19.0760, lng:72.8777, intensity:0.8, type: 'cyclone', predicted: true},
+      {lat:13.0827, lng:80.2707, intensity:0.5, type: 'flood', predicted: false},
+      {lat:22.5726, lng:88.3639, intensity:0.7, type: 'tsunami', predicted: true},
+      {lat:17.6868, lng:83.2185, intensity:0.6, type: 'oilspill', predicted: false},
+      {lat:15.9129, lng:80.4676, intensity:0.9, type: 'cyclone', predicted: true},
+      {lat:16.5062, lng:80.6480, intensity:0.4, type: 'flood', predicted: true},
+      {lat:18.5204, lng:73.8567, intensity:0.3, type: 'highwave', predicted: false}
+    ];
+   
+    const predictionZones = [
+      {lat: 20.5, lng: 75.0, radius: 150000, risk: 'high'},
+      {lat: 15.5, lng: 80.0, radius: 200000, risk: 'medium'},
+      {lat: 12.0, lng: 77.0, radius: 120000, risk: 'low'}
+    ];
+
+    // Prediction zones
+    const predictionLayer = L.layerGroup(predictionZones.map(zone => {
+      let color = '#10b981'; // low risk - green
+      if (zone.risk === 'medium') color = '#f59e0b'; // medium risk - yellow
+      if (zone.risk === 'high') color = '#ef4444'; // high risk - red
+     
+      return L.circle([zone.lat, zone.lng], {
+        radius: zone.radius,
+        color: color,
+        fillColor: color,
+        weight: 2,
+        fillOpacity: 0.2
+      });
+    })).addTo(analystMap);
+
+    // Hazard points with different styles for predicted vs actual
+    const heatLayer = L.layerGroup(hazardPoints.map(h => {
+      let color = '#ff6b6b';
+      if (h.type === 'cyclone') color = '#ff5252';
+      if (h.type === 'flood') color = '#4facfe';
+      if (h.type === 'tsunami') color = '#38ef7d';
+      if (h.type === 'oilspill') color = '#6a3093';
+     
+      // Different style for predicted hazards
+      const dashArray = h.predicted ? '5, 10' : null;
+     
+      return L.circle([h.lat, h.lng], {
+        radius: h.intensity * 50000,
+        color: color,
+        fillColor: color,
+        weight: 2,
+        dashArray: dashArray,
+        fillOpacity: 0.3
+      });
+    })).addTo(analystMap);
+
+    // Add event listeners for map controls
+    const toggleHeatmapAnalyst = document.getElementById('toggleHeatmapAnalyst');
+    const toggleWindAnalyst = document.getElementById('toggleWindAnalyst');
+    const togglePredictions = document.getElementById('togglePredictions');
+   
+    if (toggleHeatmapAnalyst) {
+      toggleHeatmapAnalyst.addEventListener('change', e => {
+        if(e.target.checked) analystMap.addLayer(heatLayer);
+        else analystMap.removeLayer(heatLayer);
+      });
+    }
+   
+    if (togglePredictions) {
+      togglePredictions.addEventListener('change', e => {
+        if(e.target.checked) analystMap.addLayer(predictionLayer);
+        else analystMap.removeLayer(predictionLayer);
+      });
+    }
+  }
+
+  // Generate user reports for officer view
+  function generateUserReports() {
+    const reports = [
+      {
+        id: 'UR-1001',
+        title: 'High Waves at Marina Beach',
+        user: 'Ravi Kumar',
+        date: '12/05/2023 14:30',
+        location: 'Chennai, Tamil Nadu',
+        type: 'High Waves',
+        severity: 'High',
+        status: 'new',
+        description: 'Waves are reaching up to 3 meters, causing erosion and safety concerns for visitors.'
+      },
+      {
+        id: 'UR-1002',
+        title: 'Oil Slick observed',
+        user: 'Priya Sharma',
+        date: '11/05/2023 09:15',
+        location: 'Mumbai Harbor',
+        type: 'Oil Spill',
+        severity: 'Medium',
+        status: 'in-progress',
+        description: 'Thin oil slick observed near the harbor area, approximately 100m in length.'
+      },
+      {
+        id: 'UR-1003',
+        title: 'Strong Currents Warning',
+        user: 'Vikram Singh',
+        date: '10/05/2023 16:45',
+        location: 'Goa Beaches',
+        type: 'Strong Currents',
+        severity: 'High',
+        status: 'new',
+        description: 'Several swimmers caught in rip currents today. Lifeguards performed multiple rescues.'
+      },
+      {
+        id: 'UR-1004',
+        title: 'Marine Debris Accumulation',
+        user: 'Ananya Patel',
+        date: '09/05/2023 11:20',
+        location: 'Puri Beach, Odisha',
+        type: 'Marine Debris',
+        severity: 'Medium',
+        status: 'resolved',
+        description: 'Large amount of plastic waste washed ashore after high tide.'
+      }
+    ];
+   
+    const container = document.querySelector('.user-reports-container');
+    if (!container) return;
+   
+    container.innerHTML = '';
+   
+    reports.forEach(report => {
+      const reportEl = document.createElement('div');
+      reportEl.className = 'user-report-card';
+      reportEl.innerHTML = `
+        <div class="user-report-header">
+          <div class="user-report-title">${report.title}</div>
+          <div class="user-report-meta">${report.date}</div>
+        </div>
+        <div class="user-report-content">
+          <p>${report.description}</p>
+          <div><strong>Location:</strong> ${report.location}</div>
+          <div><strong>Type:</strong> ${report.type} | <strong>Severity:</strong> ${report.severity}</div>
+          <div><strong>Reported by:</strong> ${report.user}</div>
+        </div>
+        <div class="user-report-footer">
+          <div class="user-report-status status-${report.status}">
+            ${report.status.charAt(0).toUpperCase() + report.status.slice(1)}
+          </div>
+          <div class="user-report-actions">
+            <button class="btn btn-sm btn-outline-primary">View Details</button>
+            <button class="btn btn-sm btn-outline-success">Update Status</button>
+          </div>
+        </div>
+      `;
+      container.appendChild(reportEl);
+    });
+  }
+
+  // Initialize charts for user dashboard
+  function initUserCharts() {
+    // Yearly Loss Chart for Users
+    const userYearlyCtx = document.getElementById('userYearlyLossChart');
+    if (userYearlyCtx) {
+      new Chart(userYearlyCtx, {
+        type: 'bar',
+        data: {
+          labels: ['2019', '2020', '2021', '2022', '2023', '2024'],
+          datasets: [{
+            label: 'Reported Incidents',
+            data: [45, 38, 52, 67, 58, 42],
+            backgroundColor: '#006994',
+            borderColor: '#005a7a',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Number of Incidents'
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // State Loss Chart for Users
+    const userStateCtx = document.getElementById('userStateLossChart');
+    if (userStateCtx) {
+      new Chart(userStateCtx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Tamil Nadu', 'Kerala', 'Andhra Pradesh', 'Maharashtra', 'Others'],
+          datasets: [{
+            data: [35, 25, 20, 15, 5],
+            backgroundColor: [
+              '#006994',
+              '#0088cc',
+              '#00aaff',
+              '#4facfe',
+              '#38ef7d'
+            ]
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom'
+            }
+          }
+        }
+      });
+    }
+
+    // Trend Analysis Chart for Users
+    const userTrendCtx = document.getElementById('userTrendAnalysisChart');
+    if (userTrendCtx) {
+      new Chart(userTrendCtx, {
+        type: 'line',
+        data: {
+          labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+          datasets: [
+            {
+              label: 'High Waves',
+              data: [5, 3, 2, 1, 4, 8, 12, 10, 7, 4, 3, 6],
+              borderColor: '#4facfe',
+              backgroundColor: 'rgba(79, 172, 254, 0.1)',
+              tension: 0.3,
+              fill: true
+            },
+            {
+              label: 'Flooding',
+              data: [2, 1, 1, 0, 1, 5, 9, 8, 6, 3, 2, 2],
+              borderColor: '#38ef7d',
+                            backgroundColor: 'rgba(56, 239, 125, 0.1)',
+              tension: 0.3,
+              fill: true
+            },
+            {
+              label: 'Oil Spills',
+              data: [1, 1, 2, 1, 1, 2, 1, 3, 2, 1, 1, 2],
+              borderColor: '#6a3093',
+              backgroundColor: 'rgba(106, 48, 147, 0.1)',
+              tension: 0.3,
+              fill: true
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Number of Incidents'
+              }
+            }
+          }
+        }
+      });
+    }
+  }
+
+  // Initialize charts for officer dashboard
+  function initOfficerCharts() {
+    // Economic Impact Chart
+    const economicImpactCtx = document.getElementById('economicImpactChart');
+    if (economicImpactCtx) {
+      new Chart(economicImpactCtx, {
+        type: 'bar',
+        data: {
+          labels: ['Cyclones', 'Floods', 'Tsunami Alerts', 'Oil Spills', 'High Waves'],
+          datasets: [{
+            label: 'Economic Impact (₹ Crores)',
+            data: [1250, 890, 320, 180, 95],
+            backgroundColor: [
+              '#006994',
+              '#0088cc',
+              '#00aaff',
+              '#4facfe',
+              '#38ef7d'
+            ],
+            borderColor: [
+              '#005a7a',
+              '#0077b3',
+              '#0095e6',
+              '#3d94e6',
+              '#2cdb7a'
+            ],
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Economic Impact (₹ Crores)'
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Regional Impact Chart
+    const regionalImpactCtx = document.getElementById('regionalImpactChart');
+    if (regionalImpactCtx) {
+      new Chart(regionalImpactCtx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Tamil Nadu', 'Andhra Pradesh', 'Kerala', 'Odisha', 'West Bengal', 'Others'],
+          datasets: [{
+            data: [650, 725, 545, 815, 745, 420],
+            backgroundColor: [
+              '#006994',
+              '#0088cc',
+              '#00aaff',
+              '#4facfe',
+              '#38ef7d',
+              '#6a3093'
+            ]
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom'
+            }
+          }
+        }
+      });
+    }
+
+    // Incident Status Chart
+    const incidentStatusCtx = document.getElementById('incidentStatusChart');
+    if (incidentStatusCtx) {
+      new Chart(incidentStatusCtx, {
+        type: 'pie',
+        data: {
+          labels: ['Pending', 'In Progress', 'Resolved', 'Critical'],
+          datasets: [{
+            data: [8, 5, 32, 3],
+            backgroundColor: [
+              '#f59e0b',
+              '#3b82f6',
+              '#10b981',
+              '#ef4444'
+            ]
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom'
+            }
+          }
+        }
+      });
+    }
+
+    // Response Time Chart
+    const responseTimeCtx = document.getElementById('responseTimeChart');
+    if (responseTimeCtx) {
+      new Chart(responseTimeCtx, {
+        type: 'line',
+        data: {
+          labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+          datasets: [{
+            label: 'Average Response Time (hours)',
+            data: [3.8, 3.5, 3.2, 2.9, 2.7, 2.4],
+            borderColor: '#006994',
+            backgroundColor: 'rgba(0, 105, 148, 0.1)',
+            tension: 0.3,
+            fill: true
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Response Time (hours)'
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Disaster Trend Chart
+    const disasterTrendCtx = document.getElementById('disasterTrendChart');
+    if (disasterTrendCtx) {
+      new Chart(disasterTrendCtx, {
+        type: 'line',
+        data: {
+          labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+          datasets: [
+            {
+              label: 'Cyclones',
+              data: [2, 1, 0, 0, 1, 3, 5, 4, 3, 2, 1, 1],
+              borderColor: '#ef4444',
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              tension: 0.3,
+              fill: true
+            },
+            {
+              label: 'Floods',
+              data: [1, 0, 0, 1, 2, 4, 7, 6, 5, 3, 2, 1],
+              borderColor: '#4facfe',
+              backgroundColor: 'rgba(79, 172, 254, 0.1)',
+              tension: 0.3,
+              fill: true
+            },
+            {
+              label: 'Tsunami Alerts',
+              data: [0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0],
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              tension: 0.3,
+              fill: true
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Number of Incidents'
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Seasonality Chart
+    const seasonalityCtx = document.getElementById('seasonalityChart');
+    if (seasonalityCtx) {
+      new Chart(seasonalityCtx, {
+        type: 'radar',
+        data: {
+          labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+          datasets: [
+            {
+              label: 'Cyclone Probability',
+              data: [15, 10, 5, 20, 45, 30, 15, 10, 25, 50, 40, 25],
+              borderColor: '#ef4444',
+              backgroundColor: 'rgba(239, 68, 68, 0.2)',
+              pointBackgroundColor: '#ef4444',
+              pointBorderColor: '#fff',
+              pointHoverBackgroundColor: '#fff',
+              pointHoverBorderColor: '#ef4444'
+            },
+            {
+              label: 'Flood Probability',
+              data: [10, 5, 5, 10, 15, 45, 75, 70, 50, 25, 15, 10],
+              borderColor: '#4facfe',
+              backgroundColor: 'rgba(79, 172, 254, 0.2)',
+              pointBackgroundColor: '#4facfe',
+              pointBorderColor: '#fff',
+              pointHoverBackgroundColor: '#fff',
+              pointHoverBorderColor: '#4facfe'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            r: {
+              angleLines: {
+                display: true
+              },
+              suggestedMin: 0,
+              suggestedMax: 100
+            }
+          }
+        }
+      });
+    }
+
+    // Forecast Chart
+    const forecastCtx = document.getElementById('forecastChart');
+    if (forecastCtx) {
+      new Chart(forecastCtx, {
+        type: 'bar',
+        data: {
+          labels: ['Cyclone', 'Flood', 'Tsunami', 'Oil Spill', 'High Waves'],
+          datasets: [{
+            label: 'Risk Level (%)',
+            data: [65, 45, 15, 25, 60],
+            backgroundColor: [
+              '#ef4444',
+              '#f59e0b',
+              '#10b981',
+              '#3b82f6',
+              '#8b5cf6'
+            ]
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100,
+              title: {
+                display: true,
+                text: 'Risk Probability (%)'
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Efficiency Chart
+    const efficiencyCtx = document.getElementById('efficiencyChart');
+    if (efficiencyCtx) {
+      new Chart(efficiencyCtx, {
+        type: 'line',
+        data: {
+          labels: ['Q1 2023', 'Q2 2023', 'Q3 2023', 'Q4 2023', 'Q1 2024'],
+          datasets: [
+            {
+              label: 'Response Efficiency (%)',
+              data: [72, 78, 82, 85, 88],
+              borderColor: '#006994',
+              backgroundColor: 'rgba(0, 105, 148, 0.1)',
+              tension: 0.3,
+              fill: true
+            },
+            {
+              label: 'Resource Utilization (%)',
+              data: [65, 70, 75, 80, 82],
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              tension: 0.3,
+              fill: true
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100,
+              title: {
+                display: true,
+                text: 'Efficiency (%)'
+              }
+            }
+          }
+        }
+      });
+    }
+  }
+
+  // Initialize charts for analyst dashboard
+  function initAnalystCharts() {
+    // Seasonal Pattern Chart
+    const seasonalPatternCtx = document.getElementById('seasonalPatternChart');
+    if (seasonalPatternCtx) {
+      new Chart(seasonalPatternCtx, {
+        type: 'line',
+        data: {
+          labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+          datasets: [
+            {
+              label: 'Cyclone Frequency',
+              data: [2, 1, 0, 1, 3, 5, 8, 6, 4, 3, 2, 1],
+              borderColor: '#ef4444',
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              tension: 0.4,
+              fill: true
+            },
+            {
+              label: 'Flood Frequency',
+              data: [1, 1, 1, 2, 3, 7, 12, 10, 8, 4, 2, 1],
+              borderColor: '#4facfe',
+              backgroundColor: 'rgba(79, 172, 254, 0.1)',
+              tension: 0.4,
+              fill: true
+            },
+            {
+              label: 'Oil Spills',
+              data: [1, 1, 1, 1, 2, 2, 1, 2, 2, 1, 1, 1],
+              borderColor: '#6a3093',
+              backgroundColor: 'rgba(106, 48, 147, 0.1)',
+              tension: 0.4,
+              fill: true
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtzero: true,
+              title: {
+                display: true,
+                text: 'Frequency'
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Geographic Distribution Chart
+    const geographicDistributionCtx = document.getElementById('geographicDistributionChart');
+    if (geographicDistributionCtx) {
+      new Chart(geographicDistributionCtx, {
+        type: 'doughnut',
+        data: {
+          labels: ['East Coast', 'West Coast', 'Andaman & Nicobar', 'Lakshadweep'],
+          datasets: [{
+            data: [45, 30, 15, 10],
+            backgroundColor: [
+              '#006994',
+              '#0088cc',
+              '#00aaff',
+              '#4facfe'
+            ]
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom'
+            }
+          }
+        }
+      });
+    }
+
+    // Time Series Chart
+    const timeSeriesCtx = document.getElementById('timeSeriesChart');
+    if (timeSeriesCtx) {
+      new Chart(timeSeriesCtx, {
+        type: 'line',
+        data: {
+          labels: ['2019', '2020', '2021', '2022', '2023', '2024'],
+          datasets: [
+            {
+              label: 'Total Incidents',
+              data: [45, 38, 52, 67, 58, 42],
+              borderColor: '#006994',
+              backgroundColor: 'rgba(0, 105, 148, 0.1)',
+              tension: 0.3,
+              fill: true
+            },
+            {
+              label: 'Predicted Incidents',
+              data: [42, 40, 48, 62, 55, 45],
+              borderColor: '#8b5cf6',
+              backgroundColor: 'rgba(139, 92, 246, 0.1)',
+              borderDash: [5, 5],
+              tension: 0.3,
+              fill: true
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Number of Incidents'
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Risk Forecast Chart
+    const riskForecastCtx = document.getElementById('riskForecastChart');
+    if (riskForecastCtx) {
+      new Chart(riskForecastCtx, {
+        type: 'bar',
+        data: {
+          labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
+          datasets: [
+            {
+              label: 'Cyclone Risk',
+              data: [65, 72, 68, 60],
+              backgroundColor: '#ef4444'
+            },
+            {
+              label: 'Flood Risk',
+              data: [45, 50, 55, 52],
+              backgroundColor: '#4facfe'
+            },
+            {
+              label: 'Tsunami Risk',
+              data: [15, 12, 10, 8],
+              backgroundColor: '#10b981'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100,
+              title: {
+                display: true,
+                text: 'Risk Probability (%)'
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Severity Prediction Chart
+    const severityPredictionCtx = document.getElementById('severityPredictionChart');
+    if (severityPredictionCtx) {
+      new Chart(severityPredictionCtx, {
+        type: 'radar',
+        data: {
+          labels: ['Cyclones', 'Floods', 'Tsunamis', 'Oil Spills', 'High Waves'],
+          datasets: [
+            {
+              label: 'Predicted Severity',
+              data: [85, 75, 95, 60, 70],
+              borderColor: '#8b5cf6',
+              backgroundColor: 'rgba(139, 92, 246, 0.2)',
+              pointBackgroundColor: '#8b5cf6',
+              pointBorderColor: '#fff',
+                            pointHoverBackgroundColor: '#fff',
+              pointHoverBorderColor: '#8b5cf6'
+            },
+            {
+              label: 'Historical Severity',
+              data: [80, 70, 90, 65, 65],
+              borderColor: '#006994',
+              backgroundColor: 'rgba(0, 105, 148, 0.2)',
+              pointBackgroundColor: '#006994',
+              pointBorderColor: '#fff',
+              pointHoverBackgroundColor: '#fff',
+              pointHoverBorderColor: '#006994'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            r: {
+              angleLines: {
+                display: true
+              },
+              suggestedMin: 0,
+              suggestedMax: 100
+            }
+          }
+        }
+      });
+    }
+
+    // Correlation Matrix Chart
+    const correlationMatrixCtx = document.getElementById('correlationMatrixChart');
+    if (correlationMatrixCtx) {
+      new Chart(correlationMatrixCtx, {
+        type: 'bar',
+        data: {
+          labels: ['SST & Cyclones', 'Monsoon & Floods', 'Fishing & Debris', 'Shipping & Oil Spills'],
+          datasets: [{
+            label: 'Correlation Coefficient',
+            data: [0.82, 0.75, 0.37, 0.68],
+            backgroundColor: [
+              '#ef4444',
+              '#f59e0b',
+              '#10b981',
+              '#3b82f6'
+            ]
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 1,
+              title: {
+                display: true,
+                text: 'Correlation Strength'
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Cluster Analysis Chart
+    const clusterAnalysisCtx = document.getElementById('clusterAnalysisChart');
+    if (clusterAnalysisCtx) {
+      new Chart(clusterAnalysisCtx, {
+        type: 'scatter',
+        data: {
+          datasets: [
+            {
+              label: 'Cluster 1 - Cyclone Prone',
+              data: [
+                {x: 28, y: 75}, {x: 30, y: 78}, {x: 29, y: 76}, {x: 31, y: 80}, {x: 27, y: 74}
+              ],
+              backgroundColor: '#ef4444'
+            },
+            {
+              label: 'Cluster 2 - Flood Prone',
+              data: [
+                {x: 26, y: 85}, {x: 25, y: 82}, {x: 27, y: 88}, {x: 24, y: 80}, {x: 26, y: 84}
+              ],
+              backgroundColor: '#4facfe'
+            },
+            {
+              label: 'Cluster 3 - Stable',
+              data: [
+                {x: 24, y: 70}, {x: 23, y: 68}, {x: 25, y: 72}, {x: 22, y: 65}, {x: 24, y: 69}
+              ],
+              backgroundColor: '#10b981'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: 'Sea Surface Temperature (°C)'
+              }
+            },
+            y: {
+              title: {
+                display: true,
+                text: 'Humidity (%)'
+              }
+            }
+          }
+        }
+      });
+    }
+  }
+
+  // Hazard form submission
+  document.getElementById('hazardReportForm')?.addEventListener('submit', e => {
+    e.preventDefault();
+    showToast('Hazard report submitted successfully! Authorities have been notified.', 'success');
+    e.target.reset();
+  });
+
+  // Observation form submission
+  document.getElementById('observationForm')?.addEventListener('submit', e => {
+    e.preventDefault();
+    showToast('Observation shared with community!', 'success');
+    e.target.reset();
+  });
+
+  // Emergency alert form submission
+  document.getElementById('emergencyAlertForm')?.addEventListener('submit', e => {
+    e.preventDefault();
+    showToast('Emergency alert sent to affected areas!', 'success');
+    e.target.reset();
+  });
+
+  // Refresh news button
+  document.getElementById('refreshNews')?.addEventListener('click', () => {
+    showToast('News feed refreshed', 'success');
+  });
+
+  // Export data button
+  document.getElementById('exportDataBtn')?.addEventListener('click', () => {
+    showToast('Data export initiated. You will receive an email shortly.', 'success');
+  });
+
+  // Filter controls for user reports
+  document.querySelectorAll('.filter-control').forEach(control => {
+    control.addEventListener('click', () => {
+      document.querySelectorAll('.filter-control').forEach(c => c.classList.remove('active'));
+      control.classList.add('active');
+      showToast(`Filtering reports by: ${control.textContent}`, 'success');
+    });
+  });
+
+  // Generate social feed posts
+  function generateSocialPosts() {
+    const posts = [
+      { user: 'Marine Biologist', initial: 'MB', time: '2 hours ago', content: 'Spotted red tide algae bloom off the coast of Chennai. Authorities have been notified.' },
+      { user: 'Fisherman Association', initial: 'FA', time: '5 hours ago', content: 'High waves warning for the next 48 hours. All fishing boats advised to stay ashore.' },
+      { user: 'Coast Guard', initial: 'CG', time: '1 day ago', content: 'Oil spill containment efforts successful. Cleanup operations ongoing near Mumbai harbor.' },
+      { user: 'Weather Station', initial: 'WS', time: '2 days ago', content: 'Cyclone alert issued for eastern coastal regions. Evacuation procedures initiated.' }
+    ];
+   
+    const container = document.querySelector('.social-posts-container');
+    if (!container) return;
+   
+    container.innerHTML = '';
+   
+    posts.forEach(post => {
+      const postEl = document.createElement('div');
+      postEl.className = 'social-post';
+      postEl.innerHTML = `
+        <div class="social-post-header">
+          <div class="social-post-avatar">${post.initial}</div>
+          <div>
+            <strong>${post.user}</strong>
+            <div class="social-post-meta">
+              <span>${post.time}</span>
+            </div>
+          </div>
+        </div>
+        <div class="social-post-content">${post.content}</div>
+      `;
+      container.appendChild(postEl);
+    });
+  }
+
+  // Navigation between sections
+  document.querySelectorAll('.nav-link').forEach(link => {
+    link.addEventListener('click', function(e) {
+      e.preventDefault();
+     
+      document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+      this.classList.add('active');
+     
+      const section = this.dataset.section;
+      if (section) {
+        // Hide all dashboards first
+        document.getElementById('userDashboard').style.display = 'none';
+        document.getElementById('officerDashboard').style.display = 'none';
+        document.getElementById('analystDashboard').style.display = 'none';
+       
+        // Show the appropriate dashboard based on user type
+        if (currentUser && currentUser.type === 'officer') {
+          document.getElementById('officerDashboard').style.display = 'block';
+        } else if (currentUser && currentUser.type === 'analyst') {
+          document.getElementById('analystDashboard').style.display = 'block';
+        } else {
+          document.getElementById('userDashboard').style.display = 'block';
+        }
+       
+        // Scroll to the specific section if it's not the dashboard
+        if (section !== 'dashboard') {
+          const targetElement = document.getElementById(section + 'Section');
+          if (targetElement) {
+            targetElement.scrollIntoView({ behavior: 'smooth' });
+          }
+        } else {
+          // Scroll to top for dashboard
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      }
+    });
+  });
+
+  // Initialize tabs
+  const triggerTabList = document.querySelectorAll('#userTabs button, #officerTabs button, #analystTabs button');
+  triggerTabList.forEach(triggerEl => {
+    new bootstrap.Tab(triggerEl);
+  });
+
+  window.addEventListener('resize', () => {
+    if (userMap) userMap.invalidateSize();
+    if (officerMap) officerMap.invalidateSize();
+    if (analystMap) analystMap.invalidateSize();
+  });
+
+  // Initialize social posts
+  generateSocialPosts();
+});
+</script>
+
+</body>
+</html>
